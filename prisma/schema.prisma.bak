@@ -1,0 +1,519 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  phone         String   @unique
+  passwordHash  String   @map("password_hash")
+  nickname      String   @default("劇迷")
+  avatar        String?
+  coins         Int      @default(0)
+  vipLevel      Int      @default(0) @map("vip_level")
+  vipExpireAt   DateTime? @map("vip_expire_at")
+  inviteCode    String   @unique @map("invite_code")
+  invitedBy     String?  @map("invited_by")
+  isCreator     Boolean  @default(false) @map("is_creator")
+  status        Int      @default(1)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  lastLoginAt   DateTime? @map("last_login_at")
+
+  creator       Creator?
+  checkins      UserCheckin[]
+  follows       UserFollow[]
+  watchHistory  WatchHistory[]
+  comments      Comment[]
+  ratings       Rating[]
+  coinTransactions CoinTransaction[]
+  creatorFollows CreatorFollow[]
+  comicComments ComicComment[]
+  apiKeys       ApiKey[]
+  canvasProjects CanvasProject[]
+  composeTasks  ComposeTask[]
+  pointTxns     PointTransaction[]
+  points        Int      @default(500)
+  assets        Asset[]
+  drafts        Draft[]
+
+  @@map("users")
+}
+
+// ===== v6.0 補齊：開放平台 / 雲端畫布 / 合成任務 / 點數 =====
+
+model ApiKey {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String    @default("默認密鑰")
+  prefix     String    // jl-xxxx（展示用）
+  keyHash    String    @unique @map("key_hash") // sha256，不存明文
+  quota      Int       @default(1000) // OpenAPI 點數配額
+  used       Int       @default(0)
+  revokedAt  DateTime? @map("revoked_at")
+  lastUsedAt DateTime? @map("last_used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+model CanvasProject {
+  id        String          @id @default(uuid())
+  userId    String          @map("user_id")
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String          @default("未命名畫布")
+  data      Json            // { nodes, links, seq }
+  versions  CanvasVersion[]
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("canvas_projects")
+}
+
+model CanvasVersion {
+  id        String        @id @default(uuid())
+  projectId String        @map("project_id")
+  project   CanvasProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  data      Json
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@index([projectId, createdAt])
+  @@map("canvas_versions")
+}
+
+model ComposeTask {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    String   @default("queued") // queued/processing/done/failed
+  clips     Json
+  audios    Json?
+  bgm       String?
+  title     String?
+  outputUrl String?  @map("output_url")
+  error     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, status])
+  @@map("compose_tasks")
+}
+
+model PointTransaction {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  delta     Int      // 負數為消費
+  balance   Int
+  reason    String   // 如 image:seedream5 / video:veo31 / llm:kimi-k3
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("point_transactions")
+}
+
+model Creator {
+  id            String   @id @default(uuid())
+  userId        String   @unique @map("user_id")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  realName      String   @map("real_name")
+  idCard        String?  @map("id_card")
+  bio           String?
+  avatar        String?
+  verified      Boolean  @default(false)
+  status        Int      @default(0)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  dramas        Drama[]
+  comicDramas   ComicDrama[]
+  stats         CreatorStats?
+  earnings      CreatorEarning[]
+  auditLogs     AuditLog[]
+
+  @@map("creators")
+}
+
+model CreatorStats {
+  id              String   @id @default(uuid())
+  creatorId       String   @unique @map("creator_id")
+  creator         Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  totalDramas     Int      @default(0) @map("total_dramas")
+  totalViews      BigInt   @default(0) @map("total_views")
+  totalFollowers  Int      @default(0) @map("total_followers")
+  totalEarnings   Int      @default(0) @map("total_earnings")
+  monthViews      BigInt   @default(0) @map("month_views")
+  monthEarnings   Int      @default(0) @map("month_earnings")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("creator_stats")
+}
+
+model CreatorFollow {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creatorId   String   @map("creator_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, creatorId])
+  @@map("creator_follows")
+}
+
+model CreatorEarning {
+  id          String   @id @default(uuid())
+  creatorId   String   @map("creator_id")
+  creator     Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  dramaId     String?  @map("drama_id")
+  drama       Drama?   @relation(fields: [dramaId], references: [id])
+  type        String
+  amount      Int
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("creator_earnings")
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String
+  icon      String?
+  sortOrder Int      @default(0) @map("sort_order")
+  status    Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  dramas    Drama[]
+  comicDramas ComicDrama[]
+
+  @@map("categories")
+}
+
+model Drama {
+  id             String    @id @default(uuid())
+  title          String
+  desc           String?
+  cover          String?
+  categoryId     String?   @map("category_id")
+  category       Category? @relation(fields: [categoryId], references: [id])
+  creatorId      String?   @map("creator_id")
+  creator        Creator?  @relation(fields: [creatorId], references: [id])
+  totalEpisodes  Int       @default(0) @map("total_episodes")
+  status         Int       @default(1)
+  auditStatus    String    @default("pending") @map("audit_status")
+  rejectReason   String?   @map("reject_reason")
+  isFree         Boolean   @default(true) @map("is_free")
+  pricePerEp     Int       @default(0) @map("price_per_ep")
+  views          BigInt    @default(0)
+  likes          Int       @default(0)
+  rating         Decimal   @default(0.0) @db.Decimal(2,1)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  publishedAt    DateTime? @map("published_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  episodes       Episode[]
+  auditLogs      AuditLog[]
+  earnings       CreatorEarning[]
+
+  @@map("dramas")
+}
+
+model Episode {
+  id             String   @id @default(uuid())
+  dramaId        String   @map("drama_id")
+  drama          Drama    @relation(fields: [dramaId], references: [id], onDelete: Cascade)
+  episodeNumber  Int      @map("episode_number")
+  title          String?
+  videoUrl       String   @map("video_url")
+  duration       Int?
+  fileSize       BigInt?  @map("file_size")
+  status         Int      @default(1)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([dramaId, episodeNumber])
+  @@map("episodes")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  dramaId     String   @map("drama_id")
+  drama       Drama    @relation(fields: [dramaId], references: [id], onDelete: Cascade)
+  creatorId   String?  @map("creator_id")
+  creator     Creator? @relation(fields: [creatorId], references: [id])
+  action      String
+  reason      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
+
+model UserCheckin {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkinDate DateTime @map("checkin_date") @db.Date
+  coinsEarned Int      @default(50) @map("coins_earned")
+  streakDays  Int      @default(1) @map("streak_days")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, checkinDate])
+  @@map("user_checkins")
+}
+
+model UserFollow {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dramaId        String   @map("drama_id")
+  lastEpisode    Int      @default(0) @map("last_episode")
+  progressSeconds Int     @default(0) @map("progress_seconds")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, dramaId])
+  @@map("user_follows")
+}
+
+model WatchHistory {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dramaId          String   @map("drama_id")
+  episodeId        String?  @map("episode_id")
+  progressSeconds  Int      @default(0) @map("progress_seconds")
+  watchedAt        DateTime @default(now()) @map("watched_at")
+
+  @@unique([userId, dramaId, episodeId])
+  @@map("watch_history")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dramaId   String   @map("drama_id")
+  episodeId String?  @map("episode_id")
+  content   String
+  parentId  String?  @map("parent_id")
+  likes     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("comments")
+}
+
+model Rating {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dramaId   String   @map("drama_id")
+  score     Decimal  @db.Decimal(2,1)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, dramaId])
+  @@map("ratings")
+}
+
+model CoinTransaction {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String
+  amount      Int
+  balance     Int
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("coin_transactions")
+}
+
+// ============================================================
+// v5.0 AI 漫劇生成相關模型
+// ============================================================
+
+model ComicDrama {
+  id            String    @id @default(uuid())
+  title         String
+  desc          String?
+  cover         String?
+  categoryId    String?   @map("category_id")
+  category      Category? @relation(fields: [categoryId], references: [id])
+  creatorId     String?   @map("creator_id")
+  creator       Creator?  @relation(fields: [creatorId], references: [id])
+  // AI 生成參數
+  artStyle      String    @default("anime") @map("art_style")       // 畫風：anime/ink/realistic/chibi
+  voiceId       String?   @map("voice_id")                          // TTS 音色
+  theme         String?                                             // 題材關鍵詞
+  prompt        String?   @db.Text                                  // 用戶原始創意
+  totalEpisodes Int       @default(0) @map("total_episodes")
+  status        Int       @default(1)                               // 1 正常 0 下架
+  auditStatus   String    @default("approved") @map("audit_status") // AI 內容默認過審，可改 pending
+  views         BigInt    @default(0)
+  likes         Int       @default(0)
+  rating        Decimal   @default(0.0) @db.Decimal(2, 1)
+  isPublic      Boolean   @default(true) @map("is_public")        // 是否發佈到靈感社區
+  remixOfId     String?   @map("remix_of_id")                     // 復刻來源作品
+  remixCount    Int       @default(0) @map("remix_count")         // 被復刻次數
+  createdAt     DateTime  @default(now()) @map("created_at")
+  publishedAt   DateTime? @map("published_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  episodes      ComicEpisode[]
+  aiTasks       AiTask[]
+  characters    Character[]
+  comicComments ComicComment[]
+
+  @@map("comic_dramas")
+}
+
+model ComicEpisode {
+  id            String     @id @default(uuid())
+  comicId       String     @map("comic_id")
+  comic         ComicDrama @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  episodeNumber Int        @map("episode_number")
+  title         String?
+  script        Json?                                          // 結構化劇本（場景/角色/對白）
+  duration      Int        @default(0)                         // 預估時長（秒）
+  status        String     @default("draft")                   // draft/generated/voiced/published
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  panels        ComicPanel[]
+
+  @@unique([comicId, episodeNumber])
+  @@map("comic_episodes")
+}
+
+model ComicPanel {
+  id          String       @id @default(uuid())
+  episodeId   String       @map("episode_id")
+  episode     ComicEpisode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  panelNumber Int          @map("panel_number")
+  imageUrl    String?      @map("image_url")                   // 分鏡圖（AI 生成或占位圖）
+  imagePrompt String?      @db.Text @map("image_prompt")       // 生圖提示詞
+  shotType    String       @default("medium") @map("shot_type")// 鏡頭：close/medium/full/wide
+  transition  String       @default("fade")                    // 轉場：fade/slide/zoom/none
+  dialogue    String?      @db.Text                            // 台詞
+  speaker     String?                                          // 說話角色（空=旁白）
+  voiceUrl    String?      @map("voice_url")                   // TTS 音頻地址
+  duration    Int          @default(3)                         // 該格停留秒數
+  history     Json?                                            // 撤銷堆疊：[{imageUrl,imagePrompt,dialogue,speaker,shotType,transition,duration,at}]
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@unique([episodeId, panelNumber])
+  @@map("comic_panels")
+}
+
+// v6.0 深化：漫劇評論（靈感社區）
+model ComicComment {
+  id        String     @id @default(uuid())
+  comicId   String     @map("comic_id")
+  comic     ComicDrama @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  userId    String     @map("user_id")
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String     @db.Text
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@index([comicId])
+  @@map("comic_comments")
+}
+
+model AiTask {
+  id         String      @id @default(uuid())
+  userId     String      @map("user_id")
+  type       String                                          // script/panels/voice/compose/full
+  status     String      @default("pending")                 // pending/processing/success/failed
+  progress   Int         @default(0)                         // 0-100
+  stage      String?                                         // 當前階段描述
+  input      Json?                                           // 生成入參
+  output     Json?                                           // 生成結果摘要
+  errorMsg   String?     @db.Text @map("error_msg")
+  comicId    String?     @map("comic_id")
+  comic      ComicDrama? @relation(fields: [comicId], references: [id], onDelete: SetNull)
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+  finishedAt DateTime?   @map("finished_at")
+
+  @@index([userId, status])
+  @@map("ai_tasks")
+}
+
+// ============================================================
+// v6.0 移動端 App：Agent 工作流 / 智能畫布 / 社區 / 聚合播放
+// ============================================================
+
+model Character {
+  id               String     @id @default(uuid())
+  comicId          String     @map("comic_id")
+  comic            ComicDrama @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  name             String
+  role             String     @default("配角")                    // 主角/配角/反派
+  persona          String?                                       // 人設描述
+  appearancePrompt String?    @db.Text @map("appearance_prompt") // 外觀生圖提示詞（保證角色一致性）
+  avatar           String?                                       // AI 生成頭像
+  voiceId          String?    @map("voice_id")                   // 綁定音色
+  createdAt        DateTime   @default(now()) @map("created_at")
+
+  @@unique([comicId, name])
+  @@map("characters")
+}
+
+model ComicFavorite {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  comicId   String   @map("comic_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, comicId])
+  @@map("comic_favorites")
+}
+
+model ComicLike {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  comicId   String   @map("comic_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, comicId])
+  @@map("comic_likes")
+}
+
+// ============================================================
+// v6.2 新增：素材庫 + 編劇草稿
+// ============================================================
+
+model Asset {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String   @default("未命名素材")
+  category  String   @default("other") // image / video / audio / script / other
+  size      Int      @default(0)
+  url       String   @default("")      // 存儲地址（OSS/S3/本地）
+  hash      String   @default("")      // SHA-256 用於差異比對
+  mimeType  String?  @map("mime_type")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, category])
+  @@index([userId, updatedAt])
+  @@map("assets")
+}
+
+model Draft {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String   @default("未命名草稿")
+  content   String   @db.Text           // 劇本正文
+  outline   String?  @db.Text           // 分場大綱
+  tags      String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, updatedAt])
+  @@map("drafts")
+}

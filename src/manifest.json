@@ -1,0 +1,25 @@
+{
+  "name": "劇浪 - AI 短劇漫劇平台",
+  "short_name": "劇浪",
+  "description": "AI 漫劇生成 · 編劇工作台 · 短劇 Agent · 靈感社區",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#0f0a1a",
+  "lang": "zh-TW",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f0a1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; img-src 'self' blob: data: https:; media-src 'self' blob: https:; connect-src 'self' http://localhost:3001; font-src 'self' https: data:;">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="assets/icon-192.png">
+  <title>劇浪 v6.2 - AI 短劇漫劇平台</title>
+  <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/artplayer@5.1.1/dist/artplayer.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #000; color: #fff; overflow-x: hidden; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .snap-y { scroll-snap-type: y mandatory; }
+    .snap-start { scroll-snap-align: start; }
+    .glass { background: rgba(0,0,0,0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(244,63,94,0.3); }
+      50% { box-shadow: 0 0 40px rgba(244,63,94,0.6); }
+    }
+    .glow-btn { animation: pulse-glow 2s infinite; }
+    .gradient-text { background: linear-gradient(135deg, #fb7185, #fb923c); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .artplayer { width: 100% !important; height: 100% !important; }
+    .loading-spinner {
+      width: 40px; height: 40px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: #f43f5e;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div id="app" class="min-h-screen bg-black text-white overflow-hidden max-w-lg mx-auto relative">
+  <!-- 頂部導航 -->
+  <header class="fixed top-0 left-0 right-0 z-50 glass border-b border-white/10">
+    <div class="flex items-center justify-between px-4 py-3 max-w-lg mx-auto">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <span class="text-lg font-bold gradient-text">劇浪</span>
+        <span class="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">v6.2 PWA</span>
+        <span class="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">Demo</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="showSearch()" class="p-2 rounded-full hover:bg-white/10 transition">
+          <svg class="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </button>
+        <button onclick="showCheckin()" class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-500 text-xs font-bold text-black cursor-pointer">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+          <span id="coin-count">--</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主內容區 -->
+  <main id="main-content" class="pt-14 pb-20">
+    <!-- Tab 導航 -->
+    <div id="tab-nav" class="flex items-center gap-1 px-4 py-2 overflow-x-auto scrollbar-hide">
+      <button onclick="switchTab('feed')" id="tab-feed" class="tab-btn active px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition bg-white text-black">推薦</button>
+      <button onclick="switchTab('theater')" id="tab-theater" class="tab-btn px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition bg-white/10 text-white/70 hover:bg-white/20">劇場</button>
+      <button onclick="switchTab('manju')" id="tab-manju" class="tab-btn px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition bg-white/10 text-white/70 hover:bg-white/20">漫劇</button>
+      <button onclick="switchTab('follow')" id="tab-follow" class="tab-btn px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition bg-white/10 text-white/70 hover:bg-white/20">追劇</button>
+      <button onclick="switchTab('rank')" id="tab-rank" class="tab-btn px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition bg-white/10 text-white/70 hover:bg-white/20">榜單</button>
+      <button onclick="switchTab('inspire')" id="tab-inspire" class="tab-btn px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition bg-white/10 text-white/70 hover:bg-white/20">社區</button>
+    </div>
+
+    <!-- 推薦 Feed -->
+    <div id="view-feed" class="view-section">
+      <div id="feed-container" class="relative h-[calc(100vh-180px)] overflow-y-scroll snap-y snap-mandatory scrollbar-hide">
+        <div class="flex items-center justify-center h-full">
+          <div class="loading-spinner"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 劇場 Grid -->
+    <div id="view-theater" class="view-section hidden px-4 py-2">
+      <div id="theater-grid" class="grid grid-cols-3 gap-3">
+        <div class="col-span-3 flex justify-center py-10"><div class="loading-spinner"></div></div>
+      </div>
+    </div>
+
+    <!-- 漫劇 -->
+    <div id="view-manju" class="view-section hidden px-4 py-2">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="px-3 py-1 rounded-full bg-purple-500/20 text-purple-400 text-xs font-medium border border-purple-500/30">AI 動態漫畫</span>
+        <span class="px-3 py-1 rounded-full bg-white/10 text-white/60 text-xs">1-3分鐘</span>
+      </div>
+      <div id="manju-grid" class="grid grid-cols-2 gap-3"></div>
+    </div>
+
+    <!-- 追劇 -->
+    <div id="view-follow" class="view-section hidden px-4 py-2">
+      <!-- v6.0 我的面板：觀看歷史 + 收藏 -->
+      <div id="mine-panel"></div>
+      <div id="follow-list" class="space-y-3">
+        <div class="text-center py-20">
+          <div class="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+          </div>
+          <p class="text-white/40">登入後查看追劇列表</p>
+          <button onclick="showLogin()" class="mt-4 px-6 py-2 rounded-full bg-rose-500 text-white text-sm font-medium hover:bg-rose-600 transition">立即登入</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 榜單 -->
+    <div id="view-rank" class="view-section hidden px-4 py-2">
+      <div class="flex gap-2 mb-4 overflow-x-auto scrollbar-hide">
+        <button onclick="switchRank('hot')" id="rank-hot" class="rank-filter active px-4 py-1.5 rounded-full text-xs font-medium bg-rose-500 text-white">熱播榜</button>
+        <button onclick="switchRank('rising')" id="rank-rising" class="rank-filter px-4 py-1.5 rounded-full text-xs font-medium bg-white/10 text-white/60">飆升榜</button>
+        <button onclick="switchRank('new')" id="rank-new" class="rank-filter px-4 py-1.5 rounded-full text-xs font-medium bg-white/10 text-white/60">新作榜</button>
+      </div>
+      <div id="rank-list" class="space-y-2">
+        <div class="flex justify-center py-10"><div class="loading-spinner"></div></div>
+      </div>
+    </div>
+    <!-- v6.0 靈感社區 -->
+    <div id="view-inspire" class="view-section hidden px-4 py-2">
+      <div class="flex items-center gap-2 mb-3 overflow-x-auto scrollbar-hide">
+        <button onclick="cmSwitchSort('hot', this)" class="cm-sort-btn px-4 py-1.5 rounded-full text-xs font-medium bg-purple-500 text-white whitespace-nowrap">🔥 最熱</button>
+        <button onclick="cmSwitchSort('new', this)" class="cm-sort-btn px-4 py-1.5 rounded-full text-xs font-medium bg-white/10 text-white/60 whitespace-nowrap">✨ 最新</button>
+        <span class="w-px h-4 bg-white/10 flex-shrink-0"></span>
+        <button onclick="cmSwitchStyle('', this)" class="cm-style-btn px-3 py-1.5 rounded-full text-xs bg-white/5 text-white ring-2 ring-purple-400 whitespace-nowrap">全部</button>
+        <button onclick="cmSwitchStyle('anime', this)" class="cm-style-btn px-3 py-1.5 rounded-full text-xs bg-white/5 text-white/50 whitespace-nowrap">日系</button>
+        <button onclick="cmSwitchStyle('ink', this)" class="cm-style-btn px-3 py-1.5 rounded-full text-xs bg-white/5 text-white/50 whitespace-nowrap">水墨</button>
+        <button onclick="cmSwitchStyle('realistic', this)" class="cm-style-btn px-3 py-1.5 rounded-full text-xs bg-white/5 text-white/50 whitespace-nowrap">寫實</button>
+        <button onclick="cmSwitchStyle('chibi', this)" class="cm-style-btn px-3 py-1.5 rounded-full text-xs bg-white/5 text-white/50 whitespace-nowrap">Q版</button>
+      </div>
+      <div id="community-grid" class="grid grid-cols-2 gap-3"></div>
+    </div>
+  </main>
+
+  <!-- 底部導航 -->
+  <nav class="fixed bottom-0 left-0 right-0 z-50 glass border-t border-white/10">
+    <div class="flex items-center justify-around py-2 max-w-lg mx-auto">
+      <button onclick="switchTab('feed')" class="nav-item flex flex-col items-center gap-0.5 p-2 text-rose-400">
+        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        <span class="text-[10px]">首頁</span>
+      </button>
+      <button onclick="switchTab('theater')" class="nav-item flex flex-col items-center gap-0.5 p-2 text-white/40 hover:text-white/70">
+        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg>
+        <span class="text-[10px]">劇場</span>
+      </button>
+      <button onclick="showUpload()" class="flex flex-col items-center gap-0.5 p-2">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-r from-rose-500 to-orange-500 flex items-center justify-center glow-btn">
+          <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>
+        </div>
+      </button>
+      <button onclick="switchTab('manju')" class="nav-item flex flex-col items-center gap-0.5 p-2 text-white/40 hover:text-white/70">
+        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+        <span class="text-[10px]">漫劇</span>
+      </button>
+      <button onclick="switchTab('follow')" class="nav-item flex flex-col items-center gap-0.5 p-2 text-white/40 hover:text-white/70">
+        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        <span class="text-[10px]">我的</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- 播放器模態框 -->
+  <div id="player-modal" class="fixed inset-0 z-[100] bg-black hidden">
+    <div class="relative h-full flex flex-col">
+      <div class="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent">
+        <button onclick="closePlayer()" class="p-2 rounded-full bg-black/40 backdrop-blur">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <div class="flex items-center gap-2">
+          <button onclick="togglePip()" class="p-2 rounded-full bg-black/40 backdrop-blur">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+          </button>
+          <button class="p-2 rounded-full bg-black/40 backdrop-blur">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="flex-1 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center relative">
+        <div id="player-video" class="w-full aspect-[9/16] max-h-[70vh] bg-gray-800 rounded-lg flex items-center justify-center relative overflow-hidden">
+          <!-- ArtPlayer 將在此初始化 -->
+        </div>
+      </div>
+      <div class="glass border-t border-white/10 p-4">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex-1 mr-4">
+            <h3 id="player-title" class="text-lg font-bold text-white mb-1">劇名</h3>
+            <p id="player-desc" class="text-white/50 text-sm line-clamp-2">劇情簡介...</p>
+          </div>
+          <button id="player-follow-btn" onclick="toggleFollowCurrent()" class="px-4 py-2 rounded-full bg-rose-500 text-white text-sm font-medium whitespace-nowrap">
+            + 追劇
+          </button>
+        </div>
+        <div class="mb-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-white/70 text-sm">選集</span>
+            <span class="text-white/40 text-xs">共 <span id="player-ep-total">0</span> 集</span>
+          </div>
+          <div id="episode-list" class="flex gap-2 overflow-x-auto scrollbar-hide pb-2"></div>
+        </div>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <button onclick="prevEp()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
+            </button>
+            <button id="play-pause-btn" onclick="togglePlay()" class="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center">
+              <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button onclick="nextEp()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+            </button>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-white/40 text-xs">倍速</span>
+            <select id="playback-rate" onchange="changeRate(this.value)" class="bg-white/10 rounded-lg px-2 py-1 text-xs text-white border-none outline-none">
+              <option value="0.5">0.5x</option>
+              <option value="1.0" selected>1.0x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2.0">2.0x</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 搜索模態框 -->
+  <div id="search-modal" class="fixed inset-0 z-[100] bg-black hidden">
+    <div class="p-4 pt-14 max-w-lg mx-auto">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="flex-1 relative">
+          <input id="search-input" type="text" placeholder="搜索短劇、演員、類型..." 
+            class="w-full bg-white/10 rounded-full px-4 py-3 pl-10 text-white placeholder-white/40 outline-none focus:bg-white/15 transition"
+            onkeydown="if(event.key==='Enter')doSearch()" oninput="debouncedSearch()">
+          <svg class="w-5 h-5 text-white/40 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+        <button onclick="closeSearch()" class="text-white/70 text-sm">取消</button>
+      </div>
+      <div id="search-results" class="hidden">
+        <h4 class="text-white/50 text-sm mb-3">搜索結果</h4>
+        <div id="search-result-list" class="space-y-3"></div>
+      </div>
+      <div id="search-default">
+        <div>
+          <h4 class="text-white/50 text-sm mb-3">熱門搜索</h4>
+          <div class="flex flex-wrap gap-2">
+            <span onclick="quickSearch('霸道總裁')" class="px-3 py-1.5 rounded-full bg-white/10 text-white/70 text-sm cursor-pointer hover:bg-white/20">霸道總裁</span>
+            <span onclick="quickSearch('重生復仇')" class="px-3 py-1.5 rounded-full bg-white/10 text-white/70 text-sm cursor-pointer hover:bg-white/20">重生復仇</span>
+            <span onclick="quickSearch('甜寵言情')" class="px-3 py-1.5 rounded-full bg-white/10 text-white/70 text-sm cursor-pointer hover:bg-white/20">甜寵言情</span>
+            <span onclick="quickSearch('玄幻修仙')" class="px-3 py-1.5 rounded-full bg-white/10 text-white/70 text-sm cursor-pointer hover:bg-white/20">玄幻修仙</span>
+            <span onclick="quickSearch('穿越古裝')" class="px-3 py-1.5 rounded-full bg-white/10 text-white/70 text-sm cursor-pointer hover:bg-white/20">穿越古裝</span>
+          </div>
+        </div>
+        <div class="mt-6">
+          <h4 class="text-white/50 text-sm mb-3">搜索歷史</h4>
+          <div id="search-history" class="space-y-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 登入/註冊模態框 -->
+  <div id="auth-modal" class="fixed inset-0 z-[100] bg-black/90 hidden flex items-end">
+    <div class="w-full max-w-lg mx-auto bg-gray-900 rounded-t-2xl p-6 border-t border-white/10">
+      <div class="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6"></div>
+      <div id="auth-login">
+        <h3 class="text-xl font-bold text-white mb-4 text-center">登入劇浪</h3>
+        <div class="space-y-4">
+          <input id="login-phone" type="tel" placeholder="手機號碼" class="w-full bg-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 outline-none focus:bg-white/15 transition">
+          <input id="login-password" type="password" placeholder="密碼" class="w-full bg-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 outline-none focus:bg-white/15 transition">
+          <button onclick="doLogin()" class="w-full py-3 rounded-xl bg-gradient-to-r from-rose-500 to-orange-500 text-white font-bold hover:opacity-90 transition">登入</button>
+        </div>
+        <p class="text-center text-white/50 text-sm mt-4">還沒有帳號？<button onclick="showRegister()" class="text-rose-400">立即註冊</button></p>
+      </div>
+      <div id="auth-register" class="hidden">
+        <h3 class="text-xl font-bold text-white mb-4 text-center">註冊帳號</h3>
+        <div class="space-y-4">
+          <input id="reg-phone" type="tel" placeholder="手機號碼" class="w-full bg-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 outline-none focus:bg-white/15 transition">
+          <input id="reg-nickname" type="text" placeholder="暱稱（可選）" class="w-full bg-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 outline-none focus:bg-white/15 transition">
+          <input id="reg-password" type="password" placeholder="密碼（至少6位）" class="w-full bg-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 outline-none focus:bg-white/15 transition">
+          <button onclick="doRegister()" class="w-full py-3 rounded-xl bg-gradient-to-r from-rose-500 to-orange-500 text-white font-bold hover:opacity-90 transition">註冊</button>
+        </div>
+        <p class="text-center text-white/50 text-sm mt-4">已有帳號？<button onclick="showLoginForm()" class="text-rose-400">立即登入</button></p>
+      </div>
+      <button onclick="closeAuth()" class="w-full py-3 mt-4 rounded-xl bg-white/10 text-white font-medium hover:bg-white/20 transition">取消</button>
+    </div>
+  </div>
+
+  <!-- 簽到彈窗 -->
+  <div id="checkin-modal" class="fixed inset-0 z-[100] bg-black/80 hidden flex items-center justify-center p-4">
+    <div class="bg-gray-900 rounded-2xl p-6 max-w-sm w-full text-center border border-white/10 relative">
+      <button onclick="closeCheckin()" class="absolute top-3 right-3 text-white/40 hover:text-white/70">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+      <div class="w-16 h-16 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-black" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      </div>
+      <h3 class="text-xl font-bold text-white mb-2">每日簽到成功！</h3>
+      <p class="text-white/60 mb-4">獲得 <span id="checkin-coins" class="text-amber-400 font-bold">+50</span> 金幣</p>
+      <div class="grid grid-cols-7 gap-1 mb-4">
+        <div class="aspect-square rounded-lg bg-amber-500/20 flex items-center justify-center text-xs text-amber-400">1</div>
+        <div class="aspect-square rounded-lg bg-amber-500/20 flex items-center justify-center text-xs text-amber-400">2</div>
+        <div class="aspect-square rounded-lg bg-amber-500/20 flex items-center justify-center text-xs text-amber-400">3</div>
+        <div class="aspect-square rounded-lg bg-amber-500 flex items-center justify-center text-xs text-black font-bold">4</div>
+        <div class="aspect-square rounded-lg bg-white/10 flex items-center justify-center text-xs text-white/40">5</div>
+        <div class="aspect-square rounded-lg bg-white/10 flex items-center justify-center text-xs text-white/40">6</div>
+        <div class="aspect-square rounded-lg bg-gradient-to-r from-rose-500 to-orange-500 flex items-center justify-center text-xs text-white font-bold">7</div>
+      </div>
+      <p id="checkin-streak" class="text-white/50 text-xs mb-4">連續簽到 4 天</p>
+      <button onclick="closeCheckin()" class="w-full py-3 rounded-xl bg-gradient-to-r from-rose-500 to-orange-500 text-white font-bold hover:opacity-90 transition">繼續看劇</button>
+    </div>
+  </div>
+
+  <!-- 創作中心彈窗 -->
+  <div id="upload-modal" class="fixed inset-0 z-[100] bg-black/90 hidden flex items-end">
+    <div class="w-full max-w-lg mx-auto bg-gray-900 rounded-t-2xl p-6 border-t border-white/10">
+      <div class="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6"></div>
+      <h3 class="text-xl font-bold text-white mb-4 text-center">創作中心</h3>
+      <div class="grid grid-cols-3 gap-3 mb-6">
+        <button onclick="showScriptwriter()" class="p-4 rounded-xl bg-gradient-to-b from-amber-500/20 to-transparent border border-amber-500/30 hover:bg-amber-500/10 transition flex flex-col items-center gap-2">
+          <div class="w-12 h-12 rounded-full bg-amber-500/30 flex items-center justify-center">
+            <svg class="w-6 h-6 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          </div>
+          <span class="text-white text-sm">編劇工作台</span>
+          <span class="text-amber-400 text-[10px]">已上線</span>
+        </button>
+        <button onclick="showAgentStudio()" class="p-4 rounded-xl bg-gradient-to-b from-purple-500/20 to-transparent border border-purple-500/30 hover:bg-purple-500/10 transition flex flex-col items-center gap-2">
+          <div class="w-12 h-12 rounded-full bg-purple-500/30 flex items-center justify-center">
+            <svg class="w-6 h-6 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          </div>
+          <span class="text-white text-sm">短劇 Agent</span>
+          <span class="text-purple-400 text-[10px]">v6.0 新功能</span>
+        </button>
+        <button onclick="showFlowCanvas()" class="p-4 rounded-xl bg-gradient-to-b from-cyan-500/20 to-transparent border border-cyan-500/30 hover:bg-cyan-500/10 transition flex flex-col items-center gap-2">
+          <div class="w-12 h-12 rounded-full bg-cyan-500/30 flex items-center justify-center">
+            <svg class="w-6 h-6 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 10a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10-10a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z"/></svg>
+          </div>
+          <span class="text-white text-sm">創作畫布</span>
+          <span class="text-cyan-400 text-[10px]">LibTV 同款</span>
+        </button>
+        <button onclick="showAssetLib(true)" class="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition flex flex-col items-center gap-2">
+          <div class="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center">
+            <svg class="w-6 h-6 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          </div>
+          <span class="text-white text-sm">上傳文件</span>
+          <span class="text-rose-400 text-[10px]">v6.1 新功能</span>
+        </button>
+        <button onclick="showAssetLib()" class="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition flex flex-col items-center gap-2">
+          <div class="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center">
+            <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          </div>
+          <span class="text-white text-sm">我的素材庫</span>
+          <span class="text-cyan-400 text-[10px]">v6.1 新功能</span>
+        </button>
+        <button onclick="showAiStudio()" class="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition flex flex-col items-center gap-2">
+          <div class="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
+            <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+          </div>
+          <span class="text-white text-sm">AI 漫劇生成</span>
+          <span class="text-purple-400 text-[10px]">已上線</span>
+        </button>
+      </div>
+      <button onclick="closeUpload()" class="w-full py-3 rounded-xl bg-white/10 text-white font-medium hover:bg-white/20 transition">取消</button>
+    </div>
+  </div>
+
+  <!-- ===== v5.0 AI 創作工作室模態框 ===== -->
+  <div id="ai-studio-modal" class="fixed inset-0 z-[100] bg-black hidden overflow-y-auto">
+    <div class="max-w-lg mx-auto min-h-full pb-10">
+      <div class="sticky top-0 z-10 glass border-b border-white/10 px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-lg font-bold gradient-text">🎨 AI 創作工作室</span>
+          <span class="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">v5.0</span>
+        </div>
+        <button onclick="closeAiStudio()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="p-4">
+        <!-- 步驟一：生成表單 -->
+        <div id="ai-step-form">
+          <div class="mb-4">
+            <label class="text-white/70 text-sm mb-2 block">💡 創意主題</label>
+            <textarea id="ai-theme" rows="3" placeholder="例：灰姑娘重生歸來，在豪門宴會上當眾揭穿繼妹的陰謀..."
+              class="w-full bg-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 outline-none focus:bg-white/15 transition resize-none"></textarea>
+          </div>
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <label class="text-white/70 text-sm mb-2 block">題材</label>
+              <select id="ai-genre" class="w-full bg-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none border-none"></select>
+            </div>
+            <div>
+              <label class="text-white/70 text-sm mb-2 block">AI 配音音色</label>
+              <select id="ai-voice" class="w-full bg-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none border-none"></select>
+            </div>
+          </div>
+          <div class="mb-4">
+            <label class="text-white/70 text-sm mb-2 block">🎨 畫風</label>
+            <input type="hidden" id="ai-style" value="anime">
+            <div id="ai-style-list" class="grid grid-cols-2 gap-2"></div>
+          </div>
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <label class="text-white/70 text-sm mb-2 block">集數</label>
+              <select id="ai-episodes" class="w-full bg-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none border-none">
+                <option value="1">1 集</option>
+                <option value="2">2 集</option>
+                <option value="3">3 集</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-white/70 text-sm mb-2 block">每集分鏡數</label>
+              <select id="ai-panels" class="w-full bg-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none border-none">
+                <option value="4">4 格</option>
+                <option value="6" selected>6 格</option>
+                <option value="8">8 格</option>
+              </select>
+            </div>
+          </div>
+          <label class="flex items-center gap-2 mb-5 cursor-pointer">
+            <input type="checkbox" id="ai-with-voice" checked class="w-4 h-4 accent-purple-500">
+            <span class="text-white/70 text-sm">生成 AI 配音（未配置 TTS 時自動使用瀏覽器語音）</span>
+          </label>
+          <button id="ai-submit-btn" onclick="aiSubmitTask()"
+            class="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold hover:opacity-90 transition">
+            🚀 開始生成
+          </button>
+          <p id="ai-backend-hint" class="text-center text-white/30 text-xs mt-3"></p>
+        </div>
+
+        <!-- 步驟二：生成進度 -->
+        <div id="ai-step-progress" class="hidden py-10">
+          <div class="flex justify-center mb-6">
+            <div class="loading-spinner" style="border-top-color:#a855f7"></div>
+          </div>
+          <h3 class="text-white text-center font-bold mb-2">AI 正在創作中...</h3>
+          <p id="ai-progress-stage" class="text-purple-300 text-center text-sm mb-6">排隊中...</p>
+          <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden mb-2">
+            <div id="ai-progress-bar" class="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500" style="width:0%"></div>
+          </div>
+          <p id="ai-progress-text" class="text-white/40 text-center text-xs">0%</p>
+        </div>
+
+        <!-- 步驟三：完成 -->
+        <div id="ai-step-done" class="hidden py-10 text-center">
+          <div class="w-20 h-20 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-5">
+            <svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+          </div>
+          <h3 class="text-xl font-bold text-white mb-1">🎉 漫劇生成完成！</h3>
+          <p id="ai-done-title" class="text-purple-300 font-medium mb-1"></p>
+          <p id="ai-done-meta" class="text-white/40 text-sm mb-6"></p>
+          <button id="ai-done-watch-btn" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold hover:opacity-90 transition mb-3">▶ 立即觀看</button>
+          <button onclick="aiResetWizard()" class="w-full py-3 rounded-xl bg-white/10 text-white font-medium hover:bg-white/20 transition">再生成一部</button>
+        </div>
+
+        <!-- 我的生成記錄 -->
+        <div class="mt-8">
+          <h4 class="text-white/50 text-sm mb-2">我的生成記錄</h4>
+          <div id="ai-my-tasks"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== v5.0 漫劇播放器模態框 ===== -->
+  <div id="comic-player-modal" class="fixed inset-0 z-[100] bg-black hidden">
+    <div class="relative h-full flex flex-col max-w-lg mx-auto">
+      <div class="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent">
+        <button onclick="closeComicPlayer()" class="p-2 rounded-full bg-black/40 backdrop-blur">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <span id="cp-ep-title" class="text-white/80 text-sm font-medium"></span>
+        <span id="cp-counter" class="text-white/50 text-xs"></span>
+      </div>
+
+      <!-- 分鏡舞台 -->
+      <div id="cp-stage" class="flex-1 relative overflow-hidden bg-gray-900"></div>
+
+      <!-- 字幕條 -->
+      <div class="px-6 py-3 min-h-[64px] flex items-center justify-center bg-gradient-to-t from-black to-transparent">
+        <p id="cp-subtitle" class="text-white text-center text-base font-medium leading-relaxed" style="text-shadow: 0 2px 8px rgba(0,0,0,0.8)"></p>
+      </div>
+
+      <!-- 控制區 -->
+      <div class="glass border-t border-white/10 p-4">
+        <div class="mb-3">
+          <h3 id="cp-title" class="text-lg font-bold text-white"></h3>
+          <p id="cp-meta" class="text-white/40 text-xs mt-0.5"></p>
+        </div>
+        <!-- 分鏡進度點 + 單格進度條 -->
+        <div class="flex items-center gap-1 mb-2" id="cp-dots"></div>
+        <div class="w-full h-1 bg-white/10 rounded-full overflow-hidden mb-4">
+          <div id="cp-progress-bar" class="h-full bg-purple-400 rounded-full" style="width:0%"></div>
+        </div>
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-3">
+            <button onclick="cpPrev()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
+            </button>
+            <button onclick="cpToggle()" class="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center">
+              <svg id="cp-play-icon" class="w-6 h-6 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              <svg id="cp-pause-icon" class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            </button>
+            <button onclick="cpNext()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+            </button>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="cp-speed-btn" onclick="cpCycleSpeed()" class="px-2.5 py-1 rounded-lg bg-white/10 text-white/80 text-xs font-bold hover:bg-white/20 transition">1x</button>
+            <span class="text-white/40 text-xs">自動連播</span>
+          </div>
+        </div>
+        <div class="flex gap-2 overflow-x-auto scrollbar-hide pb-1" id="cp-episode-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== v6.0 短劇 Agent 工作流模態框（參考小雲雀） ===== -->
+  <div id="agent-modal" class="fixed inset-0 z-[100] bg-black hidden overflow-y-auto">
+    <div class="max-w-lg mx-auto min-h-full pb-10">
+      <div class="sticky top-0 z-10 glass border-b border-white/10 px-4 py-3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-lg font-bold gradient-text">🎬 短劇 Agent</span>
+          <button onclick="closeAgentStudio()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="flex gap-1 mb-1">
+          <div id="ag-dot-1" class="flex-1 h-1 rounded-full bg-gradient-to-r from-purple-500 to-pink-500"></div>
+          <div id="ag-dot-2" class="flex-1 h-1 rounded-full bg-white/10"></div>
+          <div id="ag-dot-3" class="flex-1 h-1 rounded-full bg-white/10"></div>
+          <div id="ag-dot-4" class="flex-1 h-1 rounded-full bg-white/10"></div>
+          <div id="ag-dot-5" class="flex-1 h-1 rounded-full bg-white/10"></div>
+        </div>
+        <p id="ag-step-label" class="text-white/40 text-xs">第 1/5 步 · 劇本</p>
+      </div>
+
+      <div class="p-4">
+        <!-- ① 劇本 -->
+        <div id="ag-step-1">
+          <label class="text-white/70 text-sm mb-2 block">📝 上傳劇本或故事梗概</label>
+          <textarea id="ag-script" rows="8" placeholder="粘貼劇本或描述故事大綱，AI 將自動解析角色、分集與分鏡..."
+            class="w-full bg-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 outline-none focus:bg-white/15 transition resize-none text-sm"></textarea>
+          <div class="grid grid-cols-2 gap-3 my-4">
+            <div>
+              <label class="text-white/70 text-sm mb-2 block">題材</label>
+              <select id="ag-genre" class="w-full bg-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none border-none">
+                <option>都市</option><option>甜寵</option><option>重生</option><option>玄幻</option><option>穿越</option><option>逆襲</option><option>懸疑</option><option>古裝</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-white/70 text-sm mb-2 block">畫風</label>
+              <select id="ag-style" class="w-full bg-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none border-none">
+                <option value="anime">日系動漫</option><option value="ink">水墨國風</option><option value="realistic">寫實電影</option><option value="chibi">Q版萌系</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="text-white/70 text-sm mb-2 block">每集分鏡數</label>
+            <select id="ag-panels" class="w-full bg-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none border-none">
+              <option value="4">4 格</option><option value="6" selected>6 格</option><option value="8">8 格</option>
+            </select>
+          </div>
+          <button id="ag-parse-btn" onclick="agParseScript()" class="w-full mt-5 py-3.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold hover:opacity-90 transition">🧠 解析為故事藍圖</button>
+        </div>
+
+        <!-- ② 藍圖 -->
+        <div id="ag-step-2" class="hidden">
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-white/70 text-sm">故事藍圖（可編輯）</label>
+            <span id="ag-bp-revision" class="hidden px-2 py-0.5 rounded-full bg-purple-500/30 text-purple-300 text-[10px]"></span>
+          </div>
+          <input id="ag-bp-title" class="w-full bg-white/10 rounded-xl px-4 py-3 text-white outline-none mb-3 text-sm font-bold">
+          <textarea id="ag-bp-logline" rows="2" class="w-full bg-white/10 rounded-xl px-4 py-3 text-white outline-none mb-3 text-sm resize-none"></textarea>
+          <div class="mb-3">
+            <label class="text-white/50 text-xs mb-1.5 block">情緒曲線</label>
+            <div id="ag-bp-emotion" class="flex flex-wrap gap-1.5"></div>
+          </div>
+          <div id="ag-bp-acts" class="space-y-2 mb-3"></div>
+          <!-- 多輪改稿 -->
+          <div class="mb-5 p-3 rounded-xl bg-purple-500/10 border border-purple-500/20">
+            <label class="text-purple-300 text-xs font-medium mb-1.5 block">💬 對藍圖不滿意？告訴 AI 怎麼改</label>
+            <div class="flex gap-2">
+              <input id="ag-revise-input" placeholder="例如：加重反派戲份、結局改成悲劇" class="flex-1 bg-white/10 rounded-lg px-3 py-2 text-white text-xs outline-none border border-white/10 focus:border-purple-400">
+              <button id="ag-revise-btn" onclick="agRevise()" class="px-3 py-2 rounded-lg bg-purple-500/40 text-purple-200 text-xs font-medium hover:bg-purple-500/60 active:scale-95 whitespace-nowrap">✏️ 送出改稿</button>
+            </div>
+            <div id="ag-revise-log" class="mt-2 space-y-1 max-h-16 overflow-y-auto"></div>
+          </div>
+          <div class="flex gap-3">
+            <button onclick="agGotoStep(1)" class="flex-1 py-3 rounded-xl bg-white/10 text-white font-medium hover:bg-white/20 transition">上一步</button>
+            <button id="ag-char-btn" onclick="agGenCharacters()" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold hover:opacity-90 transition">👥 生成角色卡</button>
+          </div>
+        </div>
+
+        <!-- ③ 角色 -->
+        <div id="ag-step-3" class="hidden">
+          <label class="text-white/70 text-sm mb-2 block">角色設定（AI 生成形象，保證分鏡一致性）</label>
+          <div id="ag-cards" class="space-y-2 mb-5"></div>
+          <div class="flex gap-3">
+            <button onclick="agGotoStep(2)" class="flex-1 py-3 rounded-xl bg-white/10 text-white font-medium hover:bg-white/20 transition">上一步</button>
+            <button onclick="agPreviewScript()" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold hover:opacity-90 transition">📋 預覽分鏡腳本</button>
+          </div>
+        </div>
+
+        <!-- ④ 分鏡預覽 -->
+        <div id="ag-step-4" class="hidden">
+          <label class="text-white/70 text-sm mb-2 block">分鏡腳本預覽</label>
+          <div id="ag-storyboard" class="mb-4"></div>
+          <label class="flex items-center gap-2 mb-4 cursor-pointer">
+            <input type="checkbox" id="ag-public" checked class="w-4 h-4 accent-purple-500">
+            <span class="text-white/70 text-sm">發佈到靈感社區</span>
+          </label>
+          <div class="flex gap-3">
+            <button onclick="agGotoStep(3)" class="flex-1 py-3 rounded-xl bg-white/10 text-white font-medium hover:bg-white/20 transition">上一步</button>
+            <button id="ag-produce-btn" onclick="agProduce()" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold hover:opacity-90 transition">🎬 一鍵成片</button>
+          </div>
+        </div>
+
+        <!-- ⑤ 成片 -->
+        <div id="ag-step-5" class="hidden py-6">
+          <div id="ag-progress-wrap">
+            <div class="flex justify-center mb-6"><div class="loading-spinner" style="border-top-color:#a855f7"></div></div>
+            <h3 class="text-white text-center font-bold mb-2">Agent 正在成片...</h3>
+            <p id="ag-progress-stage" class="text-purple-300 text-center text-sm mb-6">初始化...</p>
+            <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+              <div id="ag-progress-bar" class="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500" style="width:0%"></div>
+            </div>
+          </div>
+          <div id="ag-done" class="hidden text-center">
+            <div class="w-20 h-20 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-5">
+              <svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-1">🎉 成片完成！</h3>
+            <p id="ag-done-title" class="text-purple-300 font-medium mb-6"></p>
+            <button id="ag-watch-btn" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold mb-3">▶ 立即觀看</button>
+            <button id="ag-canvas-btn" class="w-full py-3 rounded-xl bg-white/10 text-white font-medium hover:bg-white/20 transition">🎨 進入智能畫布編輯</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== v6.0 智能畫布編輯器模態框（參考即夢） ===== -->
+  <div id="canvas-modal" class="fixed inset-0 z-[100] bg-black hidden overflow-y-auto">
+    <div class="max-w-lg mx-auto min-h-full pb-24">
+      <div class="sticky top-0 z-10 glass border-b border-white/10 px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="text-lg font-bold gradient-text">🎨 智能畫布</span>
+          <span id="cv-title" class="text-white/50 text-xs truncate"></span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="cvPreviewPlay()" class="px-3 py-1.5 rounded-full bg-purple-500 text-white text-xs font-bold">▶ 預覽播放</button>
+          <button onclick="closeCanvasEditor()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="p-4">
+        <div class="flex items-center gap-2 mb-4">
+          <select id="cv-style" class="flex-1 bg-white/10 rounded-xl px-3 py-2 text-white text-sm outline-none border-none">
+            <option value="anime">日系動漫</option><option value="ink">水墨國風</option><option value="realistic">寫實電影</option><option value="chibi">Q版萌系</option>
+          </select>
+          <button id="cv-restyle-btn" onclick="cvRestyle()" class="px-3 py-2 rounded-xl bg-white/10 text-white text-xs font-medium hover:bg-white/20 transition whitespace-nowrap">🎨 整部換畫風</button>
+          <button id="cv-multi-btn" onclick="cvToggleMulti()" class="px-3 py-1.5 rounded-lg bg-white/10 text-white/70 text-xs hover:bg-white/20 whitespace-nowrap">☑️ 多選</button>
+        </div>
+
+        <!-- 批次操作條（多選模式下顯示） -->
+        <div id="cv-multi-bar" class="hidden sticky top-14 z-10 mb-3 p-2.5 rounded-xl glass border border-pink-500/40 flex items-center justify-between">
+          <span id="cv-multi-count" class="text-pink-300 text-xs font-bold"></span>
+          <button id="cv-batch-btn" onclick="cvBatchRedraw()" class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold active:scale-95">🖌️ 批次重繪選中格</button>
+        </div>
+
+        <div id="cv-grid" class="grid grid-cols-3 gap-2"></div>
+
+        <div id="cv-editor" class="hidden mt-5 p-4 rounded-2xl bg-white/5 border border-purple-500/30">
+          <p id="cv-panel-label" class="text-purple-300 text-xs font-bold mb-3"></p>
+          <div class="flex gap-3 mb-3">
+            <div id="cv-preview" class="w-24 aspect-[9/16] rounded-xl overflow-hidden bg-white/10 flex-shrink-0"></div>
+            <div class="flex-1 space-y-2">
+              <input id="cv-speaker" placeholder="說話角色（空=旁白）" class="w-full bg-white/10 rounded-lg px-3 py-2 text-white text-xs outline-none">
+              <textarea id="cv-dialogue" rows="2" placeholder="台詞..." class="w-full bg-white/10 rounded-lg px-3 py-2 text-white text-xs outline-none resize-none"></textarea>
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-2 mb-3">
+            <div>
+              <label class="text-white/40 text-[10px] block mb-1">運鏡</label>
+              <select id="cv-shot" class="w-full bg-white/10 rounded-lg px-2 py-1.5 text-white text-xs outline-none border-none">
+                <option value="close">特寫</option><option value="medium">中景</option><option value="full">全身</option><option value="wide">遠景</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-white/40 text-[10px] block mb-1">轉場</label>
+              <select id="cv-trans" class="w-full bg-white/10 rounded-lg px-2 py-1.5 text-white text-xs outline-none border-none">
+                <option value="fade">淡入</option><option value="slide">滑入</option><option value="zoom">縮放</option><option value="none">無</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-white/40 text-[10px] block mb-1">時長(秒)</label>
+              <input id="cv-duration" type="number" min="1" max="15" class="w-full bg-white/10 rounded-lg px-2 py-1.5 text-white text-xs outline-none">
+            </div>
+          </div>
+          <input id="cv-prompt" placeholder="重繪提示詞（可選，留空用原描述）" class="w-full bg-white/10 rounded-lg px-3 py-2 text-white text-xs outline-none mb-3">
+          <div class="flex gap-2">
+            <button onclick="cvSave()" class="flex-1 py-2.5 rounded-xl bg-white/10 text-white text-sm font-medium hover:bg-white/20 transition">💾 保存修改</button>
+            <button id="cv-redraw-btn" onclick="cvRedraw()" class="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-bold">🖌️ AI 重繪此格</button>
+            <button id="cv-undo-btn" onclick="cvUndo()" class="px-3 py-2.5 rounded-xl bg-white/10 text-white/70 text-sm hover:bg-white/20 transition">↩️</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="cv-toast" class="hidden fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-purple-500 text-white text-sm z-50"></div>
+  </div>
+
+  <!-- 作品詳情彈窗（v6.0 深化：詳情 + 評論區） -->
+  <div id="work-detail-modal" class="fixed inset-0 z-[95] bg-black hidden overflow-y-auto">
+    <div class="max-w-lg mx-auto min-h-full bg-[#0a0a0f] pb-24">
+      <div class="sticky top-0 z-10 glass border-b border-white/10 px-4 py-3 flex items-center justify-between">
+        <span class="text-lg font-bold gradient-text">📖 作品詳情</span>
+        <button onclick="closeWorkDetail()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="wd-body"></div>
+    </div>
+  </div>
+
+  <!-- ===== 無限創作畫布（參考 LibTV 節點工作流） ===== -->
+  <div id="flow-modal" class="fixed inset-0 z-[110] bg-[#0b0b12] hidden flex flex-col">
+    <div class="glass border-b border-white/10 px-3 py-2.5 flex items-center gap-2 flex-shrink-0">
+      <span class="text-base font-bold gradient-text whitespace-nowrap">🎛️ 創作畫布</span>
+      <select id="flow-img-model" class="bg-white/10 rounded-lg px-2 py-1 text-[10px] text-white border-none outline-none max-w-[110px]"></select>
+      <select id="flow-vid-model" class="bg-white/10 rounded-lg px-2 py-1 text-[10px] text-white border-none outline-none max-w-[110px]"></select>
+      <div class="flex-1"></div>
+      <button onclick="flSave()" title="保存畫布" class="px-2 py-1.5 rounded-lg bg-white/10 text-white/70 text-xs">💾</button>
+      <button onclick="flRunWorkflow()" title="執行工作流" class="px-2 py-1.5 rounded-lg bg-emerald-500/80 text-white text-xs font-bold">▶ 執行</button>
+      <button onclick="dgOpen()" title="導演台" class="px-2 py-1.5 rounded-lg bg-white/10 text-white/70 text-xs">🎬 導演台</button>
+      <button onclick="rpOpen()" title="逐幀拉片" class="px-2 py-1.5 rounded-lg bg-white/10 text-white/70 text-xs">🎞️ 拉片</button>
+      <button onclick="flBatchLinkStart()" title="批量連線" class="px-2 py-1.5 rounded-lg bg-white/10 text-white/70 text-xs">🔗</button>
+      <button onclick="flStoryGroup()" title="分鏡組" class="px-2 py-1.5 rounded-lg bg-white/10 text-white/70 text-xs">🗂️</button>
+      <button onclick="flOpenTimeline()" title="視頻合成" class="px-2 py-1.5 rounded-lg bg-white/10 text-white/70 text-xs">🎞 合成</button>
+      <button onclick="closeFlowCanvas()" class="p-1.5 rounded-full bg-white/10 hover:bg-white/20">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="flow-viewport" class="flex-1 relative overflow-hidden touch-none select-none" style="background-image:radial-gradient(circle,#ffffff12 1px,transparent 1px);background-size:24px 24px">
+      <div id="flow-canvas" class="absolute origin-top-left" style="width:4000px;height:4000px">
+        <svg id="flow-links" class="absolute inset-0 pointer-events-none" style="width:4000px;height:4000px"></svg>
+        <div id="flow-nodes"></div>
+      </div>
+      <!-- 縮放控制 -->
+      <div class="absolute bottom-4 right-4 flex flex-col gap-1.5 z-20">
+        <button onclick="flZoom(0.2)" class="w-8 h-8 rounded-lg glass text-white text-sm">＋</button>
+        <button onclick="flZoom(-0.2)" class="w-8 h-8 rounded-lg glass text-white text-sm">－</button>
+        <button onclick="flResetView()" class="w-8 h-8 rounded-lg glass text-white/60 text-[10px]">1:1</button>
+      </div>
+      <div id="flow-hint" class="absolute bottom-4 left-4 text-white/30 text-[10px] z-10">雙擊空白新建節點 · 拖動節點移動 · 從右側圓點拉線連接</div>
+    </div>
+    <!-- 節點類型選擇器 -->
+    <div id="flow-picker" class="hidden absolute z-30 rounded-xl glass border border-white/20 p-2 w-40">
+      <p class="text-white/50 text-[10px] px-2 pb-1.5">新建節點</p>
+      <div class="space-y-0.5">
+        <button onclick="flAddNode('text')" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-white text-xs">📝 文本節點</button>
+        <button onclick="flAddNode('script')" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-white text-xs">🎬 腳本節點</button>
+        <button onclick="flAddNode('image')" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-white text-xs">🖼️ 圖片節點</button>
+        <button onclick="flAddNode('video')" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-white text-xs">🎥 視頻節點</button>
+        <button onclick="flAddNode('audio')" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-white text-xs">🎵 音頻節點</button>
+        <button onclick="assetPickForCanvas()" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-white/10 text-cyan-300 text-xs border-t border-white/10 mt-0.5 pt-1.5">📂 上傳素材入庫</button>
+      </div>
+    </div>
+    <!-- Slash 命令面板 -->
+    <div id="flow-slash" class="hidden absolute z-40 rounded-xl glass border border-purple-500/40 p-2 w-52">
+      <p class="text-purple-300 text-[10px] px-2 pb-1.5">/ 快捷命令</p>
+      <div id="flow-slash-list" class="space-y-0.5"></div>
+    </div>
+    <!-- 視頻合成時間軸（多軌道：視頻軌 + 音頻軌，支持片段變速） -->
+    <div id="flow-timeline" class="hidden absolute bottom-0 left-0 right-0 z-30 glass border-t border-white/20 p-3 max-h-[45%] overflow-y-auto">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-white text-sm font-bold">🎞 視頻合成時間軸</span>
+        <div class="flex gap-2">
+          <button onclick="flPreviewCompose()" class="px-3 py-1 rounded-lg bg-white/10 text-white text-xs">▶ 預覽</button>
+          <button onclick="flCompose()" class="px-3 py-1 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold">✨ 合成導出</button>
+          <button onclick="document.getElementById('flow-timeline').classList.add('hidden')" class="px-2 py-1 rounded-lg bg-white/10 text-white/50 text-xs">✕</button>
+        </div>
+      </div>
+      <p class="text-cyan-300 text-[10px] mb-1">🎥 視頻軌</p>
+      <div id="flow-clips" class="space-y-1.5"></div>
+      <p class="text-amber-300 text-[10px] mt-2 mb-1">🎵 音頻軌</p>
+      <div id="flow-audio-clips" class="space-y-1.5"></div>
+      <video id="flow-preview" class="hidden w-full mt-2 rounded-lg" controls></video>
+    </div>
+    <div id="flow-toast" class="hidden fixed top-14 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-cyan-500 text-white text-sm z-50"></div>
+  </div>
+
+  <!-- ===== 導演台（參考 LibTV 導演台：擺站位 + 定機位 + 截圖當參考） ===== -->
+  <div id="director-modal" class="fixed inset-0 z-[120] bg-black/95 hidden flex-col">
+    <div class="glass border-b border-white/10 px-4 py-2.5 flex items-center justify-between flex-shrink-0">
+      <span class="text-base font-bold gradient-text">🎬 導演台</span>
+      <div class="flex gap-2">
+        <button onclick="dgShot()" class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-purple-500 text-white text-xs font-bold">📸 截圖發送到畫布</button>
+        <button onclick="dgClose()" class="p-1.5 rounded-full bg-white/10 hover:bg-white/20">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="flex-1 overflow-y-auto p-3">
+      <!-- 舞台 -->
+      <div id="dg-stage" class="relative w-full aspect-video rounded-xl overflow-hidden border border-white/20 bg-gradient-to-b from-[#1a2233] via-[#141824] to-[#0d0f16]">
+        <div class="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-white/5 to-transparent"></div>
+        <div class="absolute bottom-1/3 inset-x-0 border-t border-white/10 border-dashed"></div>
+        <span class="absolute top-2 left-2 text-white/30 text-[10px]">舞台 · 拖動角色調整站位</span>
+        <span id="dg-cam-label" class="absolute top-2 right-2 px-2 py-0.5 rounded bg-black/50 text-cyan-300 text-[10px]">機位：正面 · 全景</span>
+      </div>
+      <!-- 控制區 -->
+      <div class="mt-3 grid grid-cols-2 gap-3">
+        <div class="p-3 rounded-xl bg-white/5 border border-white/10">
+          <p class="text-white/60 text-xs font-bold mb-2">演員（點擊添加）</p>
+          <div id="dg-cast" class="flex flex-wrap gap-2"></div>
+        </div>
+        <div class="p-3 rounded-xl bg-white/5 border border-white/10">
+          <p class="text-white/60 text-xs font-bold mb-2">攝像機</p>
+          <select id="dg-angle" onchange="dgRenderCam()" class="w-full bg-white/10 rounded-lg px-2 py-1.5 text-white text-xs border-none outline-none mb-2">
+            <option value="front">正面</option><option value="left">左側</option><option value="right">右側</option>
+            <option value="top">俯拍</option><option value="low">仰拍</option>
+          </select>
+          <select id="dg-shot" onchange="dgRenderCam()" class="w-full bg-white/10 rounded-lg px-2 py-1.5 text-white text-xs border-none outline-none">
+            <option value="wide">遠景</option><option value="full" selected>全景</option><option value="medium">中景</option>
+            <option value="close">近景</option><option value="macro">特寫</option>
+          </select>
+        </div>
+      </div>
+      <p class="text-white/30 text-[10px] mt-2">站位與機位會轉成構圖參考描述，AI 照圖生成——告別抽卡式開盲盒。</p>
+    </div>
+  </div>
+
+  <!-- ===== 逐幀拉片（參考 LibTV 逐幀拉片） ===== -->
+  <div id="rip-modal" class="fixed inset-0 z-[120] bg-black/95 hidden flex-col">
+    <div class="glass border-b border-white/10 px-4 py-2.5 flex items-center justify-between flex-shrink-0">
+      <span class="text-base font-bold gradient-text">🎞️ 逐幀拉片</span>
+      <button onclick="rpClose()" class="p-1.5 rounded-full bg-white/10 hover:bg-white/20">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-3">
+      <div id="rip-setup" class="space-y-3">
+        <p class="text-white/60 text-xs">上傳參考視頻，自動抽幀並分析鏡頭語言（景別 / 運鏡 / 時長），作為創作參考。</p>
+        <label class="block w-full py-8 rounded-xl border-2 border-dashed border-white/20 text-center cursor-pointer hover:border-cyan-400/50 transition">
+          <input type="file" id="rip-file" accept="video/*" class="hidden" onchange="rpLoadFile(this)">
+          <span class="text-white/50 text-sm">📹 點擊上傳視頻</span>
+        </label>
+        <button onclick="rpLoadDemo()" class="w-full py-2.5 rounded-xl bg-white/10 text-white/70 text-xs hover:bg-white/20">使用 Demo 測試片源</button>
+      </div>
+      <div id="rip-result" class="hidden">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-white/70 text-xs font-bold">抽幀結果（<span id="rip-count">0</span> 幀）</p>
+          <button onclick="rpAnalyze()" id="rip-analyze-btn" class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold">🧠 生成鏡頭分析</button>
+        </div>
+        <div id="rip-frames" class="grid grid-cols-3 gap-2"></div>
+        <div id="rip-table" class="hidden mt-3 space-y-1.5"></div>
+      </div>
+      <video id="rip-video" class="hidden" crossorigin="anonymous" muted playsinline></video>
+      <canvas id="rip-canvas" class="hidden"></canvas>
+    </div>
+  </div>
+
+  <!-- ===== 分鏡組宮格導出 ===== -->
+  <div id="storygroup-modal" class="fixed inset-0 z-[120] bg-black/95 hidden flex-col">
+    <div class="glass border-b border-white/10 px-4 py-2.5 flex items-center justify-between flex-shrink-0">
+      <span class="text-base font-bold gradient-text">🗂️ 分鏡組</span>
+      <div class="flex gap-2">
+        <button onclick="sgExport()" class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold">⬇️ 導出帶序號大圖</button>
+        <button onclick="document.getElementById('storygroup-modal').classList.add('hidden');document.getElementById('storygroup-modal').classList.remove('flex')" class="p-1.5 rounded-full bg-white/10 hover:bg-white/20">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="flex-1 overflow-y-auto p-3">
+      <div id="sg-grid" class="grid grid-cols-3 gap-2"></div>
+      <canvas id="sg-canvas" class="hidden"></canvas>
+    </div>
+  </div>
+
+  <!-- ===== v6.1 編劇工作台 ===== -->
+  <div id="scriptwriter-modal" class="fixed inset-0 z-[115] bg-[#0d0b08] hidden flex-col">
+    <div class="glass border-b border-white/10 px-3 py-2.5 flex items-center gap-2 flex-shrink-0">
+      <span class="text-base font-bold whitespace-nowrap" style="background:linear-gradient(135deg,#fbbf24,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent">✍️ 編劇工作台</span>
+      <span class="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">v6.1</span>
+      <div class="flex-1"></div>
+      <button onclick="jlPickScriptFile('writer')" title="上傳劇本文件" class="px-2 py-1.5 rounded-lg bg-white/10 text-white/70 text-xs">📂</button>
+      <button onclick="swExportTxt()" title="導出 .txt" class="px-2 py-1.5 rounded-lg bg-white/10 text-white/70 text-xs">⬇️</button>
+      <button onclick="swSendToAgent()" title="送入 Agent 成片" class="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold">🎬 成片</button>
+      <button onclick="closeScriptwriter()" class="p-1.5 rounded-full bg-white/10 hover:bg-white/20">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- 劇本管理列 -->
+    <div class="px-3 pt-2.5 flex items-center gap-2 flex-shrink-0">
+      <select id="sw-script-select" onchange="swSwitchScript(this.value)" class="flex-1 min-w-0 bg-white/10 rounded-lg px-2 py-1.5 text-white text-xs border-none outline-none"></select>
+      <button onclick="swNewScript()" title="新建劇本" class="px-2 py-1.5 rounded-lg bg-white/10 text-white/70 text-xs">＋</button>
+      <button onclick="swDeleteScript()" title="刪除劇本" class="px-2 py-1.5 rounded-lg bg-white/10 text-white/50 text-xs">🗑</button>
+    </div>
+    <div class="px-3 pt-2 flex items-center gap-2 flex-shrink-0">
+      <input id="sw-title" onchange="swRenameScript()" placeholder="劇本標題" class="flex-1 min-w-0 bg-white/5 rounded-lg px-3 py-1.5 text-white text-xs outline-none border border-white/10 focus:border-amber-400">
+      <select id="sw-genre" onchange="swRenameScript()" class="bg-white/10 rounded-lg px-2 py-1.5 text-white text-xs border-none outline-none">
+        <option>都市</option><option>甜寵</option><option>重生</option><option>玄幻</option><option>穿越</option><option>逆襲</option><option>懸疑</option><option>古裝</option>
+      </select>
+    </div>
+
+    <!-- 頁簽 -->
+    <div class="px-3 pt-2 flex gap-1.5 flex-shrink-0">
+      <button id="sw-tab-write" onclick="swSwitchTab('write')" class="flex-1 py-2 rounded-lg text-xs font-medium bg-amber-500 text-black">✍️ 寫作</button>
+      <button id="sw-tab-outline" onclick="swSwitchTab('outline')" class="flex-1 py-2 rounded-lg text-xs font-medium bg-white/10 text-white/60">🗂 分場大綱</button>
+      <button id="sw-tab-ai" onclick="swSwitchTab('ai')" class="flex-1 py-2 rounded-lg text-xs font-medium bg-white/10 text-white/60">🤖 AI 助手</button>
+    </div>
+
+    <!-- 寫作頁 -->
+    <div id="sw-pane-write" class="flex-1 flex flex-col min-h-0 p-3">
+      <div class="flex gap-1.5 mb-2 flex-shrink-0">
+        <button onclick="swInsert('scene')" class="px-2.5 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 text-[10px] font-bold">＋場景</button>
+        <button onclick="swInsert('dialogue')" class="px-2.5 py-1.5 rounded-lg bg-pink-500/20 text-pink-300 text-[10px] font-bold">＋對白</button>
+        <button onclick="swInsert('narrate')" class="px-2.5 py-1.5 rounded-lg bg-white/10 text-white/60 text-[10px]">＋旁白</button>
+        <button onclick="swInsert('action')" class="px-2.5 py-1.5 rounded-lg bg-white/10 text-white/60 text-[10px]">＋動作</button>
+        <div class="flex-1"></div>
+        <button id="sw-preview-btn" onclick="swTogglePreview()" class="px-2.5 py-1.5 rounded-lg bg-white/10 text-white/70 text-[10px]">👁 預覽</button>
+        <button onclick="swLoadDemo()" class="px-2.5 py-1.5 rounded-lg bg-white/10 text-white/50 text-[10px]">範例</button>
+      </div>
+      <textarea id="sw-editor" placeholder="開始寫作……&#10;&#10;【場景】內·地點·夜&#10;角色名：台詞&#10;【旁白】……&#10;【動作】……" oninput="swSyncFromEditor();swRenderStats()"
+        class="flex-1 w-full bg-white/5 rounded-xl px-4 py-3 text-white text-sm leading-relaxed placeholder-white/25 outline-none border border-white/10 focus:border-amber-400 resize-none font-mono"></textarea>
+      <div id="sw-preview" class="hidden flex-1 overflow-y-auto bg-white/5 rounded-xl px-4 py-3 border border-white/10 space-y-1"></div>
+      <p id="sw-stats" class="text-white/30 text-[10px] text-center pt-2 flex-shrink-0"></p>
+    </div>
+
+    <!-- 大綱頁 -->
+    <div id="sw-pane-outline" class="hidden flex-1 overflow-y-auto p-3">
+      <p class="text-white/40 text-[10px] mb-2">分場由正文中的【場景】行自動生成，可排序 / 刪除 / 定位。</p>
+      <div id="sw-outline-list" class="space-y-2 pb-6"></div>
+    </div>
+
+    <!-- AI 助手頁 -->
+    <div id="sw-pane-ai" class="hidden flex-1 overflow-y-auto p-3 space-y-3">
+      <div class="p-3 rounded-xl bg-white/5 border border-white/10">
+        <label class="text-white/70 text-xs font-bold mb-1.5 block">💡 從一句話生成分場大綱</label>
+        <textarea id="sw-ai-logline" rows="2" placeholder="例：豪門棄女重生歸來，在家族宴會上揭穿繼妹陰謀……"
+          class="w-full bg-white/10 rounded-lg px-3 py-2 text-white text-xs placeholder-white/25 outline-none resize-none border border-white/10 focus:border-amber-400"></textarea>
+        <button id="sw-ai-outline-btn" onclick="swAiOutline()" class="w-full mt-2 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-black text-xs font-bold">🧠 生成分場大綱</button>
+      </div>
+      <div class="p-3 rounded-xl bg-white/5 border border-white/10">
+        <label class="text-white/70 text-xs font-bold mb-1.5 block">🖋 基於當前劇本</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="sw-ai-continue-btn" onclick="swAiAssist('continue')" class="py-2.5 rounded-lg bg-purple-500/30 text-purple-200 text-xs font-bold">✍️ AI 續寫下一段</button>
+          <button id="sw-ai-polish-btn" onclick="swAiAssist('polish')" class="py-2.5 rounded-lg bg-pink-500/30 text-pink-200 text-xs font-bold">✨ AI 潤色對白</button>
+        </div>
+      </div>
+      <div id="sw-ai-result" class="hidden p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
+        <div class="flex items-center justify-between mb-1.5">
+          <span id="sw-ai-result-label" class="text-amber-300 text-xs font-bold"></span>
+          <button onclick="swDiscardAiResult()" class="text-white/40 text-xs">✕ 丟棄</button>
+        </div>
+        <pre id="sw-ai-result-text" class="text-white/80 text-xs whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto font-mono"></pre>
+        <button onclick="swInsertAiResult()" class="w-full mt-2 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-black text-xs font-bold">📥 插入劇本末尾</button>
+      </div>
+    </div>
+    <div id="sw-toast" class="hidden fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-amber-500 text-black text-sm z-50"></div>
+  </div>
+
+  <!-- ===== v6.1 我的素材庫 ===== -->
+  <div id="assets-modal" class="fixed inset-0 z-[115] bg-[#0a0d12] hidden overflow-y-auto">
+    <div class="max-w-lg mx-auto min-h-full pb-10">
+      <div class="sticky top-0 z-10 glass border-b border-white/10 px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-lg font-bold gradient-text">🗃 我的素材庫</span>
+          <span class="text-[10px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded">v6.1</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="assetPickFiles()" class="px-3 py-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 text-white text-xs font-bold">📤 上傳</button>
+          <button onclick="closeAssetLib()" class="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="p-4">
+        <div class="flex gap-2 mb-3 overflow-x-auto scrollbar-hide">
+          <button onclick="assetSetFilter('all', this)" class="asset-filter-btn px-3 py-1.5 rounded-full text-xs whitespace-nowrap bg-cyan-500 text-white font-bold">全部</button>
+          <button onclick="assetSetFilter('image', this)" class="asset-filter-btn px-3 py-1.5 rounded-full text-xs whitespace-nowrap bg-white/10 text-white/60">🖼️ 圖片</button>
+          <button onclick="assetSetFilter('video', this)" class="asset-filter-btn px-3 py-1.5 rounded-full text-xs whitespace-nowrap bg-white/10 text-white/60">🎥 視頻</button>
+          <button onclick="assetSetFilter('audio', this)" class="asset-filter-btn px-3 py-1.5 rounded-full text-xs whitespace-nowrap bg-white/10 text-white/60">🎵 音頻</button>
+          <button onclick="assetSetFilter('script', this)" class="asset-filter-btn px-3 py-1.5 rounded-full text-xs whitespace-nowrap bg-white/10 text-white/60">📄 劇本文件</button>
+        </div>
+        <p id="assets-meta" class="text-white/30 text-[10px] mb-3"></p>
+        <div id="assets-grid" class="grid grid-cols-3 gap-2"></div>
+        <p class="text-white/25 text-[10px] mt-4 leading-relaxed">圖片 / 視頻 / 音頻可一鍵「入畫布」變成創作節點；劇本文件（txt/md/docx/pdf）可「入編劇台」自動解析為劇本結構。素材保存在本機瀏覽器（IndexedDB），離線可用。</p>
+      </div>
+    </div>
+    <div id="assets-toast" class="hidden fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-cyan-500 text-white text-sm z-50"></div>
+  </div>
+
+  <!-- v6.1 隱藏文件輸入 -->
+  <input type="file" id="jl-script-file-input" accept=".txt,.md,.docx,.pdf" class="hidden">
+  <input type="file" id="asset-file-input" accept="image/*,video/*,audio/*,.txt,.md,.docx,.pdf" multiple class="hidden">
+
+  <!-- v6.0 PWA 安裝橫幅 -->
+  <div id="pwa-install-banner" class="hidden fixed bottom-16 left-4 right-4 z-[90] max-w-lg mx-auto">
+    <div class="glass rounded-2xl p-3 flex items-center gap-3 border border-purple-500/30">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center flex-shrink-0">
+        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-white text-sm font-bold">安裝劇浪 App</p>
+        <p class="text-white/50 text-xs">離線觀看 · 全屏體驗</p>
+      </div>
+      <button onclick="pwaInstall()" class="px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold">安裝</button>
+      <button onclick="pwaDismissInstall()" class="text-white/40 text-xs px-1">關閉</button>
+    </div>
+  </div>
+
+<script src="js/config.js"></script>
+<script src="js/toast.js"></script>
+<script src="js/api.js"></script>
+<script src="js/monitor.js"></script>
+<script>
+  // Demo 模式才加載 mock API，生產環境省 1 個請求
+  if (location.search.includes('demo=1') || location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    document.write('<script src="js/mock-api.js"><\/script>');
+  }
+</script>
+<script src="js/player.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/ai-studio.js"></script>
+<script src="js/comic-player.js"></script>
+<script src="js/agent-studio.js"></script>
+<script src="js/canvas-editor.js"></script>
+<script src="js/community.js"></script>
+<script src="js/flow-canvas.js"></script>
+<script src="js/libtv-tools.js"></script>
+<script src="js/upload.js"></script>
+<script src="js/scriptwriter.js"></script>
+<script src="js/assets.js"></script>
+<script src="js/v61.js"></script>
+<script src="js/pwa.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

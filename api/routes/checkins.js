@@ -1,0 +1,1 @@
+const express = require('express');const router = express.Router();const auth = require('../middleware/auth');const ctrl = require('../controllers/checkinController');router.get('/status', auth, ctrl.getStatus);router.post('/daily', auth, ctrl.dailyCheckin);module.exports = router;

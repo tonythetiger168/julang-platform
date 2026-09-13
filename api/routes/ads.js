@@ -1,0 +1,1 @@
+const express = require('express');const router = express.Router();const auth = require('../middleware/auth');const ctrl = require('../controllers/adController');router.get('/status', auth, ctrl.getStatus);router.post('/watch', auth, ctrl.watchAd);module.exports = router;
