@@ -1,0 +1,1 @@
+function success(res, data = null, message = 'success') { res.json({ code: 200, message, data }); } function error(res, status, message, code = null) { res.status(status).json({ code: code || status, message }); } module.exports = { success, error };
