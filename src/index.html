@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<!--
+  RECONSTRUCTED SHELL — not part of the original repository.
+  The published repo ships src/js/*.js and src/assets/* but no HTML/CSS at all.
+  This file provides the DOM contract the JS expects, the Tailwind design system
+  its generated markup is written against, and the vendor libraries it calls
+  (Artplayer, hls.js).
+  Layout and styling here are inferred, not the original design.
+  The AI 創作 suite (AI studio / agent / scriptwriter / canvas / flow / LibTV
+  tools, plus the 素材庫 and 劇本上傳 modules that only served it) was removed
+  from the front end; api/** still exposes the /ai/* and /openapi/* routes.
+-->
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="劇浪">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<title>劇浪 JuLang — AI 短劇漫劇平台</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f0a1a">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+
+<!-- error capture: lets a headless run report console/JS failures in the DOM -->
+<script>
+window.__errs = [];
+window.__logs = [];
+window.addEventListener('error', function (e) {
+  window.__errs.push((e.message || 'error') + ' @' + (e.filename || '?') + ':' + (e.lineno || 0));
+}, true);
+window.addEventListener('unhandledrejection', function (e) {
+  window.__errs.push('unhandledrejection: ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+});
+// capture console output so a headless dump can report it
+['log', 'warn', 'error'].forEach(function (kind) {
+  var orig = console[kind].bind(console);
+  console[kind] = function () {
+    try {
+      if (window.__logs.length < 40) {
+        window.__logs.push(kind + ': ' + Array.prototype.map.call(arguments, String).join(' ').slice(0, 180));
+      }
+    } catch (_) {}
+    orig.apply(null, arguments);
+  };
+});
+</script>
+
+<!-- Tailwind: the class vocabulary found in the JS is Tailwind (bg-white/10, text-[10px], aspect-[3/4] …) -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- vendor libraries referenced by the JS itself (jsdelivr URLs are quoted in the source) -->
+<script src="https://cdn.jsdelivr.net/npm/artplayer@5.1.1/dist/artplayer.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
+
+<script src="js/platform.js"></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="bg-[#0a0a1a] text-white antialiased">
+
+<!-- ============ top bar ============ -->
+<header class="shrink-0 flex items-center gap-2 px-3 py-2" style="padding-top:calc(env(safe-area-inset-top,0px) + 8px)">
+  <button class="flex-1 flex items-center gap-2 px-3 py-2 rounded-full bg-white/8 border border-white/10 text-left active:scale-[.99]"
+          onclick="showSearch()" title="搜尋">
+    <span class="text-white/40 text-sm">🔍</span>
+    <span class="text-white/35 text-xs truncate">與閨蜜爸爸的禁忌之戀</span>
+  </button>
+  <!-- VIP 角標：文字由 /subscription/plans 的**真實方案資料**填入（見 js/vip-offer.js），
+       不再寫死。後端目前沒有任何折扣欄位，所以不編造 %：沒有折扣時顯示「最便宜付費方案
+       X 起」，若之後方案帶了 percentOff／originalPrice，會自動改顯示 -XX%。
+       載入失敗時保留「優惠」字樣（仍可點進會員頁），不會顯示假數字。 -->
+  <button id="vip-badge" class="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-gradient-to-r from-amber-400 to-rose-500 text-black text-[11px] font-bold active:scale-95"
+          onclick="switchTab('inspire')" title="VIP 優惠">👑 優惠</button>
+  <button class="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white/10 text-xs active:scale-95"
+          onclick="showCheckin()" title="獎勵">🎁 <span id="coin-count">0</span></button>
+</header>
+
+<!-- ============ views ============ -->
+<main id="app-main" class="flex-1 min-h-0 relative flex flex-col">
+  <!-- DramaBox app 首頁：文字分頁（非膠囊）＋底線表示選中 -->
+  <div id="home-tabs" class="shrink-0 flex gap-5 overflow-x-auto px-3 py-2 no-scrollbar" style="background:#07070f">
+    <button data-tab="pick"      class="tab-active" onclick="homeTab('pick')">精選</button>
+    <button data-tab="new"       onclick="homeTab('new')">新劇</button>
+    <button data-tab="rank"      onclick="homeTab('rank')">排行榜</button>
+    <button data-tab="genres"    onclick="homeTab('genres')">分類</button>
+    <button data-tab="exclusive" onclick="homeTab('exclusive')">獨家</button>
+    <button data-tab="manju"     onclick="switchTab('manju')">漫劇</button>
+  </div>
+
+  <section id="view-feed" class="view-section">
+    <!-- 找劇標籤列：佔自己的一列、排在影片之上（不再 absolute 疊在卡片上） -->
+    <div id="home-chips" class="flex gap-2 overflow-x-auto px-3 py-2 no-scrollbar">
+      <button class="chip chip-active" onclick="homeChip(this,'__feed')">推薦</button>
+      <button class="chip" onclick="switchTab('rank')">熱播榜</button>
+      <!-- genre chips are injected from the demo data layer (DramaBox taxonomy) -->
+    </div>
+    <div id="feed-container" class="hidden"></div>
+
+    <!-- DramaBox 首頁三排：必看好劇 / 當前熱播 / 精彩劇集（由 js/home-rows.js 填入） -->
+    <div id="home-grid-wrap">
+      <div id="home-grid" class="grid grid-cols-2 gap-3 px-3 pb-4"></div>
+    </div>
+    <div id="home-rows-wrap" class="hidden">
+    <div class="row-section">
+      <div class="row-head"><h2 id="row-must-title">必看好劇</h2><button data-more="row-must">更多 ›</button></div>
+      <div id="row-must" class="row-strip"></div>
+    </div>
+    <div class="row-section">
+      <div class="row-head"><h2 id="row-trending-title">當前熱播</h2><button data-more="row-trending">更多 ›</button></div>
+      <div id="row-trending" class="row-strip"></div>
+    </div>
+    <div class="row-section">
+      <div class="row-head"><h2 id="row-gems-title">精彩劇集</h2><button data-more="row-gems">更多 ›</button></div>
+      <div id="row-gems" class="row-strip"></div>
+    </div>
+    </div>
+
+  </section>
+
+  <section id="view-theater" class="view-section hidden">
+    <div class="p-3">
+      <h2 class="text-sm text-white/50 mb-2">分類</h2>
+      <div id="theater-grid" class="grid grid-cols-2 gap-3"></div>
+    </div>
+  </section>
+
+  <section id="view-inspire" class="view-section hidden">
+    <div class="p-3 space-y-4">
+      <div class="rounded-2xl p-4 bg-gradient-to-r from-rose-500/20 to-emerald-500/20 border border-white/10">
+        <div class="text-xs text-white/60">金幣餘額</div>
+        <div class="text-3xl font-bold text-amber-300">🪙 <span id="welfare-coins">0</span></div>
+        <div class="text-[11px] text-white/40 mt-1">每日簽到、觀看廣告都能累積金幣</div>
+      </div>
+      <h2 class="text-sm text-white/50">熱門社群</h2>
+      <div id="community-grid" class="grid grid-cols-2 gap-3"></div>
+    </div>
+  </section>
+
+  <section id="view-manju" class="view-section hidden">
+    <div class="p-3">
+      <h2 class="text-sm text-white/50 mb-2">漫劇</h2>
+      <div id="manju-grid" class="grid grid-cols-2 gap-3"></div>
+    </div>
+  </section>
+
+  <section id="view-follow" class="view-section hidden">
+    <div class="p-3 space-y-4">
+      <h2 class="text-sm text-white/50">我的</h2>
+      <h2 class="text-sm text-white/50">追劇</h2>
+      <div id="follow-list" class="space-y-2"></div>
+      <div id="mine-panel" class="space-y-2"></div>
+    </div>
+  </section>
+
+  <section id="view-rank" class="view-section hidden">
+    <div class="p-3">
+      <h2 class="text-sm text-white/50 mb-2">排行榜</h2>
+      <div class="flex gap-2 mb-3">
+        <button id="rank-hot"  class="rank-filter px-3 py-1 rounded-full bg-rose-500 text-white text-xs" onclick="switchRank('hot')">熱門</button>
+        <button id="rank-new"  class="rank-filter px-3 py-1 rounded-full bg-white/10 text-white/60 text-xs" onclick="switchRank('new')">最新</button>
+        <button id="rank-rate" class="rank-filter px-3 py-1 rounded-full bg-white/10 text-white/60 text-xs" onclick="switchRank('rate')">評分</button>
+      </div>
+      <div id="rank-list" class="space-y-2"></div>
+    </div>
+  </section>
+</main>
+
+<!-- ============ bottom tab bar ============
+     DramaBox/DramaWave keep this to ~5 destinations. ORDER MATTERS:
+     ui.js tabMap maps feed->0, theater->1, manju->3, follow->4, so the first
+     five .nav-item elements must stay feed, theater, inspire, manju, follow.
+
+     LABEL VOCABULARY — matches the reference app where it is honest:
+       0 首頁   the feed
+       1 分類   the 21-category brick wall (kept 分類: the view's own heading
+                says 分類, so calling the tab 推薦 would contradict the page)
+       2 會員   the coins / daily-checkin / VIP hub (inspire view)
+       3 漫劇   AI comic dramas — a 劇浪 feature the reference app has no tab for
+       4 我的   the 我的 + 追劇 screen (this view already renders #mine-panel)
+     Only the label text may change here; ui.js binds tabs to positions. -->
+<!-- v7.6.2：底部導覽照參考 App 換成**線性 SVG 圖示**（原本是 emoji，每個平台長得不一樣）。
+     ⚠️ 只換圖示：id、順序、標籤文字都不能動 —— ui.js 的 tabMap 是**位置綁定**，
+     標籤也是前幾輪刻意定案的（分類／漫劇 是劇浪自己的分頁）。
+     圖示用 stroke="currentColor"，所以 ui.js 切換 text-rose-400 / text-white/40 時
+     圖示會跟著變色，不需要額外的 active 樣式。 -->
+<nav class="shrink-0 grid grid-cols-5 items-stretch border-t border-white/10">
+  <button id="tab-feed"    class="nav-item tab-btn flex flex-col items-center justify-center gap-0.5 py-1.5 text-rose-400" onclick="switchTab('feed')"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 10.7 12 3.9l8.6 6.8"/><path d="M5.8 9.7V20h12.4V9.7"/><path d="M9.9 20v-5.3h4.2V20"/></svg></span><span class="text-[10px]">首頁</span></button>
+  <button id="tab-theater" class="nav-item tab-btn flex flex-col items-center justify-center gap-0.5 py-1.5 text-white/40" onclick="switchTab('theater')"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.8" y="3.8" width="7" height="7" rx="1.7"/><rect x="13.2" y="3.8" width="7" height="7" rx="1.7"/><rect x="3.8" y="13.2" width="7" height="7" rx="1.7"/><rect x="13.2" y="13.2" width="7" height="7" rx="1.7"/></svg></span><span class="text-[10px]">分類</span></button>
+  <button id="tab-inspire" class="nav-item tab-btn flex flex-col items-center justify-center gap-0.5 py-1.5 text-white/40" onclick="switchTab('inspire')"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 7.6l4.1 3.2L12 5.4l4.3 5.4 4.1-3.2-1.6 10H5.2z"/><path d="M5.2 20h13.6"/></svg></span><span class="text-[10px]">會員</span></button>
+  <button id="tab-manju"   class="nav-item tab-btn flex flex-col items-center justify-center gap-0.5 py-1.5 text-white/40" onclick="switchTab('manju')"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.4h5.6a2.4 2.4 0 0 1 2.4 2.4 2.4 2.4 0 0 1 2.4-2.4H20v12.4h-5.6A2.4 2.4 0 0 0 12 20.2a2.4 2.4 0 0 0-2.4-2.4H4z"/><path d="M12 7.8v12.4"/></svg></span><span class="text-[10px]">漫劇</span></button>
+  <button id="tab-follow"  class="nav-item tab-btn flex flex-col items-center justify-center gap-0.5 py-1.5 text-white/40" onclick="switchTab('follow')"><span class="nav-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.3" r="3.7"/><path d="M4.7 20.1c0-3.5 3.3-5.7 7.3-5.7s7.3 2.2 7.3 5.7"/></svg></span><span class="text-[10px]">我的</span></button>
+</nav>
+
+<!-- ---------- reward chrome (3.3 / 3.4) ----------
+     #promo-popup floats in the bottom-right corner above the tab bar; it ships
+     hidden and js/promo-popup.js reveals it, except when it was dismissed.
+     #coin-pill is NOT permanent floating chrome any more: styles.css only shows
+     it while #view-inspire (會員) is the active view, because the header already
+     carries the balance in #coin-count. -->
+<div id="coin-pill" class="hidden" onclick="showCheckin()" title="金幣餘額" role="button" tabindex="0">
+  <span id="coin-pill-delta" class="hidden">+0</span>
+  <span aria-hidden="true">🪙</span><span id="coin-pill-count">0</span>
+</div>
+
+<div id="promo-popup" class="hidden" role="dialog" aria-label="超值優惠">
+  <button id="promo-close" onclick="dismissPromo()" aria-label="關閉" title="關閉">×</button>
+  <div class="promo-title">超值優惠</div>
+  <p id="promo-body" class="promo-body">超值方案</p>
+  <button class="promo-cta" onclick="switchTab('inspire')">立即升級</button>
+</div>
+
+<!-- ============================================================
+     MODALS — all start hidden; JS removes .hidden (styles.css makes
+     any *-modal flex when visible, since modules disagree between
+     classList.remove('hidden') and adding 'flex')
+     ============================================================ -->
+
+<!-- ---------- player ---------- -->
+<div id="player-modal" class="fixed inset-0 z-50 hidden bg-black/90 p-3">
+  <div class="w-full max-w-3xl space-y-3">
+    <!-- 舊標題列（片名／集數總數／金幣／⛶／關閉）。v7.6 直式滿版（.player-immersive）
+         時整列隱藏，改由覆蓋在畫面上的 #player-top-bar 提供返回／選集／倍速／⋮；
+         這幾個 id 仍留在 DOM（ui.js 會寫入文字），只是不佔版面。 -->
+    <div id="player-head" class="flex items-center gap-2">
+      <div id="player-title" class="flex-1 font-bold"></div>
+      <div id="player-ep-total" class="text-xs text-white/50"></div>
+      <div class="flex items-center gap-1 text-xs text-amber-300">🪙 <span id="coin-amount">0</span></div>
+      <button class="w-8 h-8 rounded-lg bg-white/10 text-xs active:scale-95" onclick="toggleFullscreen()" title="全螢幕（橫屏觀看）" aria-label="全螢幕">⛶</button>
+      <button class="px-3 py-1 rounded-lg bg-white/10 text-xs" onclick="closePlayer()">關閉</button>
+    </div>
+    <!-- 頂列（DramaBox 型）：‹ 返回 ＋ 第 N 集 ＋ 倍速（真的改 playbackRate）＋ ⋮。
+         `‹` 關掉播放器＝回到上一頁（播放器本身就是全螢幕覆蓋層）；
+         `第 N 集` 直接開選集 sheet（與右側「選集」同一條路，不另做一套）。
+         v7.6.2：**預設 hidden**（使用者：「全部預設隱藏、點畫面才出現」）。
+         頂列／右側操作列／底部列是**同一組**，由 player-rail.js 的 railShow/railHide
+         一起切換（點影片 = toggle），三者永遠同步。 -->
+    <div id="player-top-bar" class="hidden">
+      <button id="rail-back" type="button" class="top-bar-btn" onclick="closePlayer()" aria-label="返回">‹</button>
+      <button id="rail-episode-chip" type="button" class="top-bar-btn" onclick="railTogglePicker()" aria-haspopup="dialog" title="選集">第 1 集</button>
+      <div class="flex-1"></div>
+      <button id="rail-speed" type="button" class="top-bar-btn" onclick="railToggleSpeed()" aria-haspopup="menu" aria-expanded="false" title="播放速度">1.0×</button>
+      <!-- v7.6.2：⋮ 開「播放設置」面板（解析度／倍速／彈幕／畫中畫），不再是只有觀看數的小選單 -->
+      <button id="rail-more" type="button" class="top-bar-btn" onclick="railToggleSettings()" aria-haspopup="dialog" aria-expanded="false" aria-label="播放設置">⋮</button>
+    </div>
+    <!-- 播放區：比例由**影片自己**決定（v7.4）。容器不再寫死 aspect-video（16:9），
+         那會把直式成片（720×1280）壓扁；player.js 在 loadedmetadata 讀
+         videoWidth/videoHeight 後寫入 --jl-video-aspect / --jl-video-ratio，
+         styles.css 的 #player-video 規則用它算出框的比例與高度上限。
+         v7.6.2：右側操作列改成 DramaBox 版型 —— **線性圖示 + 下方數字/文字**、
+         沒有膠囊底。數字是**真的**：收藏＝UserFollow 的實際人數（後端 followCount）、
+         留言＝Comment 的實際則數（commentCount）；拿不到就整行不顯示，不編 0。
+         預設 hidden（與頂列／底部列同一組，點畫面一起 toggle）。
+         它放在 #player-video-home 內（該節點是定位基準），所以永遠貼齊畫面右緣；
+         全螢幕時 player-rail.js 會把它搬進 Artplayer 的容器，離開時搬回來。 -->
+    <div id="player-video-home">
+      <div id="player-video" class="w-full bg-black rounded-xl overflow-hidden"></div>
+      <div id="player-rail" class="hidden" role="toolbar" aria-label="播放操作" aria-orientation="vertical">
+        <button id="rail-follow" type="button" class="rail-btn" onclick="railToggleFollow()" aria-pressed="false" title="加入追劇">
+          <span class="rail-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.8h11a1 1 0 0 1 1 1v15.4l-6.5-3.8-6.5 3.8V4.8a1 1 0 0 1 1-1z"/></svg></span>
+          <span id="rail-follow-count" class="rail-cap">0</span>
+        </button>
+        <button id="rail-comment" type="button" class="rail-btn" onclick="railComment()" title="留言">
+          <span class="rail-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 11.6a8.2 8.2 0 0 1-8.8 8.1 9 9 0 0 1-3.2-.6L3.5 21l1.6-4.9a7.9 7.9 0 0 1-.7-3.3 8.2 8.2 0 0 1 8.8-8.1 8.2 8.2 0 0 1 7.3 6.9z"/></svg></span>
+          <span id="rail-comment-count" class="rail-cap">0</span>
+        </button>
+        <button id="rail-picker" type="button" class="rail-btn" onclick="railTogglePicker()" aria-expanded="false" aria-haspopup="dialog" title="選集">
+          <span class="rail-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h11M4 12h11M4 17.5h7"/><path d="M18 10.5v7l5-3.5z"/></svg></span>
+          <span class="rail-cap">選集</span>
+        </button>
+        <button id="rail-share" type="button" class="rail-btn" onclick="railShare()" aria-haspopup="dialog" title="分享本集">
+          <span class="rail-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5v6.7a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-6.7"/><path d="M12 15.2V3.6"/><path d="M8.2 7.4 12 3.6l3.8 3.8"/></svg></span>
+          <span class="rail-cap">分享</span>
+        </button>
+      </div>
+      <!-- 倍速選單（頂列的「1.0×」打開；真的改 artPlayer.playbackRate）。
+           v7.6.2：原本的 #rail-more-menu 已由「播放設置」sheet 取代（⋮ 改開那張）。 -->
+      <div id="rail-speed-menu" class="rail-menu hidden" role="menu" aria-label="播放速度"></div>
+    </div>
+    <!-- 底部列（DramaBox 型）：左＝開通會員、右＝下載（原本在下載在右側操作列，重複故移除）。
+         下載＝<a download>（同源 MP4 由瀏覽器原生下載）。href 與 download **只在該集可播放時**
+         才由 player-rail.js 寫上；鎖住的集數（契約：videoUrl 為 null）連 href 都沒有，
+         所以不可能下載到付費內容。
+         v7.6.2：**預設 hidden**（使用者：「在影片視窗下固定隱藏、點擊顯示出來」），
+         與頂列／右側操作列同一組，點畫面一起出現、再點一起收起。 -->
+    <div id="player-bottom-bar" class="hidden">
+      <button id="bottom-membership" type="button" class="bottom-bar-btn" onclick="switchTab('inspire')" title="開通會員">✓ 開通會員</button>
+      <a id="rail-download" class="bottom-bar-btn" download onclick="return railDownload(event)" aria-disabled="true" title="下載本集">⤓ 下載</a>
+    </div>
+    <!-- ---------- 由下往上滑入的 bottom sheet（DramaBox 型）----------
+         兩個 sheet 都是 fixed inset-0，所以不會被 #player-video-home 的 overflow 裁掉；
+         內容由 player-rail.js 依真實資料填寫（封面 / 片名 / views / 簡介 / 集數）。 -->
+    <div id="rail-picker-sheet" class="rail-sheet hidden" role="dialog" aria-modal="true" aria-label="選集">
+      <div id="rail-picker-backdrop" class="rail-sheet-backdrop" onclick="railClosePicker()" aria-hidden="true"></div>
+      <div class="rail-sheet-panel">
+        <button id="rail-picker-close" type="button" class="rail-sheet-close" onclick="railClosePicker()" aria-label="關閉選集">✕</button>
+        <div id="rail-picker-body"></div>
+      </div>
+    </div>
+    <div id="rail-share-sheet" class="rail-sheet hidden" role="dialog" aria-modal="true" aria-label="分享">
+      <div id="rail-share-backdrop" class="rail-sheet-backdrop" onclick="railCloseShare()" aria-hidden="true"></div>
+      <div class="rail-sheet-panel">
+        <button id="rail-share-close" type="button" class="rail-sheet-close" onclick="railCloseShare()" aria-label="關閉分享">✕</button>
+        <div id="rail-share-body"></div>
+      </div>
+    </div>
+    <!-- ---------- ⋮「播放設置」sheet（v7.6.2）----------
+         內容由 player-rail.js 依**真實狀態**填寫：目前解析度讀影片實際尺寸、
+         倍速真的改 artPlayer.playbackRate、畫中畫真的切 artPlayer.pip；
+         彈幕本專案沒有引擎 → 誠實標示「尚未開通」，不做假的開關。 -->
+    <div id="rail-settings-sheet" class="rail-sheet hidden" role="dialog" aria-modal="true" aria-label="播放設置">
+      <div id="rail-settings-backdrop" class="rail-sheet-backdrop" onclick="railCloseSettings()" aria-hidden="true"></div>
+      <div class="rail-sheet-panel">
+        <button id="rail-settings-close" type="button" class="rail-sheet-close" onclick="railCloseSettings()" aria-label="關閉播放設置">✕</button>
+        <div id="rail-settings-body"></div>
+      </div>
+    </div>
+    <!-- ---------- 留言 sheet（v7.6.2）----------
+         接真的後端（GET/POST /api/v1/dramas/:id/comments）；未登入可以看留言，
+         要送出時才要求登入（按下去會開登入框）。 -->
+    <div id="rail-comment-sheet" class="rail-sheet hidden" role="dialog" aria-modal="true" aria-label="留言">
+      <div id="rail-comment-backdrop" class="rail-sheet-backdrop" onclick="railCloseComments()" aria-hidden="true"></div>
+      <div class="rail-sheet-panel">
+        <button id="rail-comment-close" type="button" class="rail-sheet-close" onclick="railCloseComments()" aria-label="關閉留言">✕</button>
+        <div id="rail-comment-body"></div>
+      </div>
+    </div>
+    <div id="player-desc" class="text-sm text-white/60"></div>
+    <!-- 集數（v7.6 起**不再顯示在播放器下方**）：使用者要求「集數不用放下面，放在浮出
+         選單裡，格子變更小」→ 真正的集數 UI 是右側「選集」的 bottom sheet
+         （#rail-picker-body 內的 .rail-ep-grid，6 欄小方格）。
+         這個 #episode-list 仍保留：它是 ui.js / renderEpisodeList() 的渲染目標，也是
+         paywalltest.js 驗「鎖住的集數有 🔒 與 data-locked」的 DOM 契約；
+         styles.css 把它 display:none，所以畫面上不會有第二份集數清單。 -->
+    <div id="episode-list"></div>
+  </div>
+</div>
+
+<!-- ---------- mini player (3.2) ----------
+     closePlayer() parks the still-alive #player-video in this fixed card
+     instead of destroying the player; tapping the card restores it. -->
+<div id="pip-card" class="hidden" onclick="restorePlayer()" title="點擊繼續播放" role="button" tabindex="0">
+  <div id="pip-video-slot"></div>
+  <span id="pip-label">EP.1</span>
+  <span id="pip-play">▶</span>
+</div>
+
+<!-- ---------- auth ---------- -->
+<div id="auth-modal" class="fixed inset-0 z-50 hidden bg-black/80 p-4">
+  <div class="w-full max-w-sm bg-[#141024] rounded-2xl p-4 space-y-3">
+    <div class="flex gap-2">
+      <button class="flex-1 py-2 rounded-lg bg-white/10 text-sm" onclick="showLoginForm()">登入</button>
+      <button class="flex-1 py-2 rounded-lg bg-white/10 text-sm" onclick="showRegister()">註冊</button>
+    </div>
+    <div id="auth-login" class="space-y-2">
+      <input id="login-phone"    type="tel"      placeholder="手機號" class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 outline-none">
+      <input id="login-password" type="password" placeholder="密碼"   class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 outline-none">
+      <button class="w-full py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500" onclick="doLogin()">登入</button>
+    </div>
+    <div id="auth-register" class="space-y-2 hidden">
+      <input id="reg-phone"    type="tel"      placeholder="手機號" class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 outline-none">
+      <input id="reg-password" type="password" placeholder="密碼"   class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 outline-none">
+      <input id="reg-nickname" type="text"     placeholder="暱稱"   class="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 outline-none">
+      <button class="w-full py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500" onclick="doRegister()">註冊</button>
+    </div>
+  </div>
+</div>
+
+<!-- ---------- search ---------- -->
+<div id="search-modal" class="fixed inset-0 z-50 hidden bg-black/90 p-4">
+  <div class="w-full max-w-xl space-y-3">
+    <input id="search-input" type="search" placeholder="搜尋短劇、漫劇、創作者…"
+           class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/10 outline-none">
+    <div id="search-default"  class="space-y-2">
+      <div id="search-history" class="flex flex-wrap gap-2"></div>
+    </div>
+    <div id="search-results" class="space-y-2">
+      <div id="search-result-list" class="space-y-2"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ---------- checkin ---------- -->
+<div id="checkin-modal" class="fixed inset-0 z-50 hidden bg-black/80 p-4">
+  <div class="w-full max-w-sm bg-[#141024] rounded-2xl p-4 space-y-3 text-center">
+    <div class="text-sm text-white/60">連續簽到</div>
+    <div id="checkin-streak" class="text-3xl font-bold text-amber-300">0</div>
+    <div class="text-sm text-white/60">獲得</div>
+    <div id="checkin-coins" class="text-xl font-bold text-amber-300">0</div>
+  </div>
+</div>
+
+<!-- ---------- community / work detail ---------- -->
+<div id="work-detail-modal" class="fixed inset-0 z-50 hidden bg-black/85 p-4">
+  <div class="w-full max-w-xl bg-[#141024] rounded-2xl p-4 space-y-3">
+    <!-- community.js renders the whole detail into #wd-body, including its own
+         #wd-comment-count / #wd-comment-input / #wd-comment-btn / #wd-comments.
+         The shell must provide only this container. -->
+    <div id="wd-body" class="text-sm text-white/80"></div>
+    <!-- community.js emits its own #wd-comment-input inside the wd-body template;
+         declaring one here would create a duplicate id at runtime. -->
+  </div>
+</div>
+
+<!-- ---------- comic player ---------- -->
+<div id="comic-player-modal" class="fixed inset-0 z-50 hidden bg-black/95 p-3">
+  <div class="w-full max-w-2xl space-y-2">
+    <div class="flex items-center gap-2">
+      <div id="cp-title" class="font-bold flex-1"></div>
+      <div id="cp-meta" class="text-xs text-white/50"></div>
+      <button class="px-3 py-1 rounded-lg bg-white/10 text-xs" onclick="closeComicPlayer()">關閉</button>
+    </div>
+    <div id="cp-stage" class="relative w-full aspect-[9/16] max-h-[70vh] rounded-xl bg-black overflow-hidden"></div>
+    <div id="cp-subtitle" class="text-center text-sm text-white/80 min-h-[1.25rem]"></div>
+    <div class="flex items-center gap-3">
+      <button id="cp-play-icon"  class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center" onclick="cpToggle()">▶</button>
+      <button id="cp-pause-icon" class="w-8 h-8 rounded-full bg-white/10 hidden items-center justify-center" onclick="cpToggle()">⏸</button>
+      <div class="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
+        <div id="cp-progress-bar" class="h-full w-0 bg-rose-500"></div>
+      </div>
+      <div id="cp-counter" class="text-xs text-white/60">0/0</div>
+      <button id="cp-speed-btn" class="px-2 py-1 rounded-lg bg-white/10 text-xs" onclick="cpCycleSpeed()">1×</button>
+    </div>
+    <div id="cp-dots" class="flex justify-center gap-1"></div>
+    <div class="text-xs text-white/50">集數</div>
+    <div id="cp-ep-title" class="text-sm"></div>
+    <div id="cp-episode-list" class="grid grid-cols-5 gap-2"></div>
+  </div>
+</div>
+
+<!-- ---------- global toast + install banner ---------- -->
+<div id="global-toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] px-4 py-2 rounded-xl bg-black/85 border border-white/10 text-sm hidden"></div>
+
+<div id="pwa-install-banner" class="fixed bottom-16 left-3 right-3 z-[60] hidden items-center gap-2 px-3 py-2 rounded-xl bg-[#141024] border border-white/10">
+  <span class="flex-1 text-xs">安裝劇浪到主畫面</span>
+  <button class="px-3 py-1 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-xs" onclick="pwaInstall()">安裝</button>
+  <button class="px-3 py-1 rounded-lg bg-white/10 text-xs" onclick="pwaDismissInstall()">稍後</button>
+</div>
+
+<!-- diagnostics hook (reconstruction only): writes captured errors where a headless dump can read them -->
+<div id="__diag" style="display:none"></div>
+
+<!-- ============================================================
+     APP SCRIPTS — ordered by dependency:
+     CONFIG → toast → api → mock layer → render/ui → features → entry
+     ============================================================ -->
+<script src="js/config.js"></script>
+<script src="js/toast.js"></script>
+<script src="js/api.js"></script>
+<script src="js/mock-api.js"></script>
+<script src="js/demo-videos.js"></script>
+<script src="js/home-rows.js"></script>
+<script src="js/home-tabs.js"></script>
+<script src="js/coin-pill.js"></script>
+<script src="js/promo-popup.js"></script>
+<script src="js/vip-offer.js"></script>
+<!-- before render.js: render.js 的卡片愛心 onclick 呼叫 window.toggleFollow，
+     以前那只是一個空 stub（按了沒反應）。follow.js 提供真正的追劇實作，
+     player-rail.js 的「收藏」也轉呼叫同一支，兩邊狀態不會各說各話。 -->
+<script src="js/follow.js"></script>
+<script src="js/render.js"></script>
+<!-- player.js before ui.js: ui.js's id-based openPlayer must win, since all
+     generated markup calls openPlayer('<dramaId>') -->
+<script src="js/player.js"></script>
+<script src="js/ui.js"></script>
+<!-- after ui.js: wraps openPlayer to apply the server-side episode lock state -->
+<script src="js/unlock.js"></script>
+<!-- after unlock.js: 播放器右側操作列（收藏/留言/選集/分享）＋頂列（倍速/⋮）＋底部列
+     （開通會員/下載）＋兩個由下往上滑入的 bottom sheet（選集/分享）。
+     必須在 ui.js（openPlayer）與 unlock.js（伺服器鎖定狀態）之後，因為它包的是那兩個
+     wrapper 的結果：換劇/換集時要重畫操作列、鎖住的集數要停用下載與分享。 -->
+<script src="js/player-rail.js"></script>
+<!-- after ui.js: overrides doSearch -->
+<script src="js/v61.js"></script>
+<script src="js/community.js"></script>
+<!-- after render.js: overrides renderManju -->
+<script src="js/comic-player.js"></script>
+<script src="js/monitor.js"></script>
+<script src="js/pwa.js"></script>
+<script src="js/app.js"></script>
+
+<!-- Compatibility shims: the bundle calls these but never defines them.
+     ui.js openPlayer() calls updateFollowBtn() BEFORE showing the player, so
+     without a stub every card tap throws and the player never opens. -->
+<script>
+  // Compatibility shims: the bundle calls these but never defines them.
+  // ui.js openPlayer() calls updateFollowBtn() BEFORE showing the player, so
+  // without a stub every card tap throws and the player never opens.
+  if (typeof window.updateFollowBtn !== 'function') window.updateFollowBtn = function () {};
+  if (typeof window.toggleFollow !== 'function') window.toggleFollow = function () {};
+
+  // 紅果-style top strip: genres go through the app's own search; anything the
+  // demo data cannot serve says so instead of pretending to filter.
+  window.homeChip = function (btn, term, label) {
+    var all = document.querySelectorAll('#home-chips .chip');
+    for (var i = 0; i < all.length; i++) {
+      if (all[i] === btn) all[i].classList.add('chip-active');
+      else all[i].classList.remove('chip-active');
+    }
+    if (term === '__feed') { var v = document.getElementById('view-feed'); if (v) v.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (term === '__unsupported') { if (window.showToast) showToast('Demo 資料未提供「' + label + '」篩選'); return; }
+    if (typeof window.quickSearch === 'function') quickSearch(term);
+  };
+
+  // 紅果/DramaBox share the same idea here: a scrollable genre strip above the
+  // feed. The taxonomy comes from the demo data layer so it is defined once.
+  (function () {
+    var strip = document.getElementById('home-chips');
+    var genres = window.__genreList || [];
+    if (!strip || !genres.length) return;
+    for (var i = 0; i < genres.length; i++) {
+      var b = document.createElement('button');
+      b.className = 'chip';
+      b.textContent = genres[i].name;
+      b.setAttribute('onclick', "homeChip(this,'" + genres[i].name + "')");
+      strip.appendChild(b);
+    }
+  })();
+
+  // mirror the header balance into the 福利 card
+  (function () {
+    var cc = document.getElementById('coin-count');
+    var wc = document.getElementById('welfare-coins');
+    if (!cc || !wc) return;
+    wc.textContent = cc.textContent;
+    if (window.MutationObserver) {
+      new MutationObserver(function () { wc.textContent = cc.textContent; })
+        .observe(cc, { childList: true, characterData: true, subtree: true });
+    }
+  })();
+</script>
+
+<script>
+  // Diagnostics (reconstruction only, observational): records page errors and
+  // console output, then writes a snapshot into #__diag for headless inspection.
+  document.addEventListener('DOMContentLoaded', function () {
+    // deep link: #feed #theater #welfare #manju #follow #rank
+    var hash = (location.hash || '').replace(/^#/, '');
+    var play = hash.match(/^play=(.+)$/);
+    if (play) {
+      try { openPlayer(play[1]); } catch (e) { window.__errs.push('openPlayer: ' + e.message); }
+    } else {
+      var target = hash === 'welfare' ? 'inspire' : (hash || 'feed');
+      try { switchTab(target); } catch (e) { window.__errs.push('switchTab: ' + e.message); }
+    }
+  });
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      var d = document.getElementById('__diag');
+      var feed = document.getElementById('feed-container');
+      var rect = function (el) {
+        if (!el) return null;
+        var r = el.getBoundingClientRect();
+        return [Math.round(r.x), Math.round(r.width)];
+      };
+      var navItems = [].map.call(document.querySelectorAll('.nav-item'), function (b) {
+        return Math.round(b.getBoundingClientRect().x);
+      });
+      d.textContent = 'DIAG ' + JSON.stringify({
+        errors: window.__errs,
+        logs: window.__logs.slice(-12),
+        layout: {
+          innerW: window.innerWidth,
+          docScrollW: document.documentElement.scrollWidth,
+          bodyW: Math.round(document.body.getBoundingClientRect().width),
+          header: rect(document.querySelector('header')),
+          nav: rect(document.querySelector('nav')),
+          navItemX: navItems,
+          stage: rect(feed ? feed.firstElementChild && feed.firstElementChild.firstElementChild : null),
+        },
+        video: (function () {
+          var v = document.querySelector('#player-video video');
+          if (!v) return null;
+          return {
+            src: String(v.currentSrc || v.src || '').slice(0, 90),
+            readyState: v.readyState,
+            duration: Math.round(v.duration || 0),
+            paused: v.paused,
+            error: v.error ? v.error.code : null
+          };
+        })(),
+        feedChildren: feed ? feed.children.length : -1,
+        feedCards: feed ? (feed.innerHTML.match(/snap-start/g) || []).length : -1,
+        theaterChildren: document.getElementById('theater-grid').children.length,
+        rankChildren: document.getElementById('rank-list').children.length,
+        tailwind: !!window.tailwind,
+        artplayer: typeof window.Artplayer,
+        hls: typeof window.Hls,
+        apiPatched: !!(window.api && window.api.request && String(window.api.request).indexOf('Math.random') !== -1)
+      });
+    }, 2500);
+  });
+</script>
+</body>
+</html>

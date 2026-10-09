@@ -99,55 +99,7 @@ async function renderMinePanel() {
             <p class="text-white/70 text-[10px] mt-1 truncate">${f.title}</p>
           </div>`).join('')}
       </div>` : '<p class="text-white/30 text-xs py-3">暫無收藏，去靈感社區逛逛吧</p>'}
-      ${pwaAccessKeyCard()}
     </div>`;
-}
-
-// ---------- AccessKey / Agent Skill（對齊 LibTV：開放 API 給外部 Agent 調用） ----------
-const ACCESS_KEY_STORE = 'julang_access_key';
-
-function pwaGetAccessKey() {
-  let k = localStorage.getItem(ACCESS_KEY_STORE);
-  if (!k) {
-    k = 'jl-' + Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
-    localStorage.setItem(ACCESS_KEY_STORE, k);
-  }
-  return k;
-}
-
-function pwaAccessKeyCard() {
-  if (!api.isLoggedIn()) return '';
-  const k = pwaGetAccessKey();
-  return `
-    <div class="mt-5 p-3 rounded-xl bg-gradient-to-br from-cyan-500/10 to-purple-500/10 border border-cyan-500/30">
-      <div class="flex items-center justify-between mb-1.5">
-        <h4 class="text-white font-bold text-sm">🔑 AccessKey · Agent Skill</h4>
-        <span class="text-cyan-300/70 text-[9px]">LibTV 同款開放能力</span>
-      </div>
-      <p class="text-white/40 text-[10px] mb-2">把劇浪的 AI 工作流（劇本 / 分鏡 / 出圖 / 配音 / 合成）作為 Skill 接入你的外部 Agent。</p>
-      <div class="flex items-center gap-2">
-        <code class="flex-1 bg-black/40 rounded-lg px-2 py-1.5 text-cyan-300 text-[10px] truncate select-all">${k.slice(0, 10)}${'•'.repeat(12)}${k.slice(-4)}</code>
-        <button onclick="pwaCopyAccessKey()" class="px-2.5 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 text-[10px] font-bold active:scale-95">複製</button>
-        <button onclick="pwaResetAccessKey()" class="px-2.5 py-1.5 rounded-lg bg-white/10 text-white/50 text-[10px]">重置</button>
-      </div>
-      <div class="mt-2 bg-black/40 rounded-lg px-2 py-1.5">
-        <p class="text-white/30 text-[9px] mb-0.5">在支持 Skills 的 Agent 中安裝：</p>
-        <code class="text-emerald-300/90 text-[9px] break-all select-all">npx skills add https://julang.app/skills/julang.md</code>
-      </div>
-    </div>`;
-}
-
-function pwaCopyAccessKey() {
-  const k = pwaGetAccessKey();
-  const done = () => { showToast('🔑 AccessKey 已複製'); };
-  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(k).then(done).catch(() => { prompt('手動複製：', k); });
-  else prompt('手動複製：', k);
-}
-
-function pwaResetAccessKey() {
-  if (!confirm('重置後舊 Key 立即失效，確定？')) return;
-  localStorage.removeItem(ACCESS_KEY_STORE);
-  renderMinePanel();
 }
 
 window.pwaInstall = pwaInstall;
@@ -156,6 +108,4 @@ window.pwaRecordHistory = pwaRecordHistory;
 window.pwaGetHistory = pwaGetHistory;
 window.pwaClearHistory = pwaClearHistory;
 window.pwaRemoveHistory = pwaRemoveHistory;
-window.pwaCopyAccessKey = pwaCopyAccessKey;
-window.pwaResetAccessKey = pwaResetAccessKey;
 window.renderMinePanel = renderMinePanel;

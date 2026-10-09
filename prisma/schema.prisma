@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -45,6 +46,8 @@ model User {
   checkinLogs   CheckinLog[]
   adWatches     AdWatchLog[]
   giftRedemptions GiftRedemption[]
+  sentGifts     DramaGift[] @relation("GiftSender")
+  claimedGifts  DramaGift[] @relation("GiftClaimant")
 
   @@map("users")
 }
@@ -222,6 +225,7 @@ model Drama {
   publishedAt    DateTime? @map("published_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   episodes       Episode[]
+  gifts          DramaGift[]
   auditLogs      AuditLog[]
   earnings       CreatorEarning[]
 
@@ -635,6 +639,30 @@ model AdWatchLog {
 
   @@index([userId, createdAt])
   @@map("ad_watch_logs")
+}
+
+// ===== v7.6 贈送影片（會員送給好友免費看）=====
+// 一組贈送碼綁一齣劇。領取時寫入的是**同一張 UnlockedEpisode**（同一條付費牆，
+// 見 api/controllers/dramaController.js 的 toEpisode），不是第二套解鎖機制。
+// 「只能被領一次」不靠應用層的「先查再寫」，而是靠 updateMany 的條件式更新
+// （where claimedById = null），所以並發下也只會有一個請求成功。
+model DramaGift {
+  id              String    @id @default(uuid())
+  code            String    @unique
+  dramaId         String    @map("drama_id")
+  drama           Drama     @relation(fields: [dramaId], references: [id], onDelete: Cascade)
+  senderId        String    @map("sender_id")
+  sender          User      @relation("GiftSender", fields: [senderId], references: [id], onDelete: Cascade)
+  claimedById     String?   @map("claimed_by_id")
+  claimedBy       User?     @relation("GiftClaimant", fields: [claimedById], references: [id], onDelete: SetNull)
+  claimedAt       DateTime? @map("claimed_at")
+  episodesGranted Int       @default(0) @map("episodes_granted")
+  expiresAt       DateTime  @map("expires_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([senderId, createdAt])
+  @@index([claimedById])
+  @@map("drama_gifts")
 }
 
 model GiftRedemption {

@@ -1,1 +1,60 @@
-# Dependenciesnode_modules/.pnp.pnp.js# Testingcoverage/# Productionbuild/dist# Environment variables.env.env.local.env.development.local.env.test.local.env.production.local.env.validate# Uploadsuploads/assets/*uploads/compose/*# Database*.db*.sqlite# Logs*.lognpm-debug.log*yarn-debug.log*yarn-error.log*# IDE.vscode/.idea/# OS.DS_StoreThumbs.db# Prismaprisma/migrations/# Mobilemobile/node_modules/mobile/.expo/mobile/dist/# Miniappminiapp/node_modules/miniapp/dist/miniapp/.temp/
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+
+# Production
+build
+/dist
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.validate
+
+# Uploads
+uploads/assets/*
+uploads/compose/*
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma
+prisma/migrations/
+
+# Mobile
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+
+# Miniapp
+miniapp/node_modules/
+miniapp/dist/
+miniapp/.temp/
+
+# ===== v7.7 修復 =====
+# 這個檔案原本被壓成「一行」（所有 newlines 遺失）→ 整份變成一條 `#` 註解，
+# 於是 .env（密鑰）、node_modules/（253 MB）、demo 成片全部**沒有被忽略**：
+# `git add -A` 會納入 7,714 個檔案。上面已還原成正常的多行格式。
+preview-*.zip

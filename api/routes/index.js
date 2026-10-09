@@ -6,12 +6,11 @@ const cache = require('../middleware/cache');
 
 router.use('/auth', require('./auth'));
 router.use('/dramas', require('./drama'));
+// v7.7 劇集留言的刪除端點（列表／新增在 ./drama 的 /:id/comments）
+router.use('/comments', require('./comments'));
 router.use('/user', require('./user'));
 router.use('/creators', require('./creator'));
-router.use('/ai', require('./ai'));
-router.use('/ai/agent', require('./agent'));
-router.use('/ai/tools', require('./tools'));
-router.use('/openapi', require('./openapi'));
+// v7.3：/ai、/ai/agent、/ai/tools、/openapi 整條線已移除（連同其 controller 與 services/ai）
 router.use('/canvas', require('./canvas'));
 router.use('/community', require('./community'));
 
@@ -25,6 +24,8 @@ router.use('/coins', require('./coins'));
 router.use('/checkin', require('./checkins'));
 router.use('/ads', require('./ads'));
 router.use('/giftcodes', require('./giftcodes'));
+// v7.6 贈送影片（會員送給好友免費看）：與上面的 giftcodes 不同——那是兌換碼換金幣
+router.use('/gifts', require('./gifts'));
 router.use('/subscription', require('./subscriptions'));
 
 // 頂層快捷路由（與文檔保持一致）

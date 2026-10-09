@@ -190,6 +190,17 @@
 ### GET /coins/unlocked/:dramaId 🔒
 **響應：** 已解鎖集數 ID 列表
 
+### POST /coins/share-reward 🔒
+**請求：** 無（分享動作由前端判定成功後才呼叫）
+**響應：**
+```json
+{ "code": 200, "data": { "granted": true, "coins": 1510, "amount": 10 } }
+```
+**冪等：** 每位使用者只發一次；第二次回
+`{ "granted": false, "alreadyGranted": true, "coins": <目前餘額> }`（HTTP 200，不是錯誤）
+**錯誤：** 401 未認證（未登入不要呼叫）
+**備註：** 前端在 `navigator.share`／複製連結**成功之後**才呼叫；`granted:false` 時不再顯示 +10。
+
 ---
 
 ## 廣告激勵模組（v7.1+）
@@ -222,31 +233,21 @@
 
 ---
 
-## AI 模組
+## 漫劇模組（v7.3 起改走語意路徑 `/comics`）
 
-### POST /ai/comics
-**請求：**
-```json
-{
-  "theme": "主題",
-  "style": "ink",
-  "episodes": 6
-}
-```
+> **路徑變更（v7.3）**：後端已移除整條 `/ai/*`（AI 創作套件，含 `/ai/comics`、
+> `/ai/tasks`、`/ai/tools/*`），前端漫劇也改走 `/comics`（見 `src/js/comic-player.js`）。
+> 舊文檔寫的 `POST /ai/comics`、`GET /ai/tasks`、`GET /ai/tasks/:id` **已不存在**，
+> 不要照著接。
 
-**響應：**
-```json
-{
-  "code": 200,
-  "data": { "taskId": "task_uuid" }
-}
-```
+### GET /comics?limit=20
+**響應：** 漫劇列表（`{ list: [...] }`）
 
-### GET /ai/tasks
-**響應：** 任務列表（輪詢用）
+### GET /comics/:id
+**響應：** 單部漫劇詳情（含 `episodes`、`artStyle`、`views`）
 
-### GET /ai/tasks/:id
-**響應：** 單任務狀態
+### GET /comics/:id/episodes/:episodeNumber
+**響應：** 單集分鏡（`panels`、`subtitle` 等，見 `comic-player.js`）
 
 ---
 
@@ -323,12 +324,14 @@
 | /dramas/* | ✅ | ⏳ | |
 | /categories | ✅ | ⏳ | |
 | /user/* | ✅ | ⏳ | |
-| /ai/* | ✅ | ⏳ | |
+| /ai/* | ❌（已移除） | ❌（已移除） | v7.3 整條線移除（含 /ai/comics）；漫劇改走 /comics |
+| /comics/* | ✅ | 未掛載 | 前端已改走語意路徑；後端尚無 /comics 路由（demo 由 mock-api.js 提供） |
 | /community/* | ✅ | ⏳ | |
 | /assets/* | ✅ (IndexedDB) | ✅ | v6.2 新增，v7.2 已掛載 |
 | /drafts/* | ✅ (localStorage) | ✅ | v6.2 新增，v7.2 已掛載 |
 | /monitor/* | ✅ | ✅ | v6.2 新增，v7.2 已掛載 |
 | /coins/* | ✅ | ✅ | v7.1 新增，v7.2 兩段式支付 |
+| /coins/share-reward | ✅ | ✅ | 分享給第一位朋友 +10 幣；冪等（alreadyGranted）|
 | /checkin/* | ✅ | ✅ | v7.1 新增 |
 | /ads/* | ✅ | ✅ | v7.1 新增 |
 | /giftcodes/redeem | ✅ | ✅ | v7.1 新增 |

@@ -16,12 +16,12 @@ async function main() {
     { name: "古裝", icon: "🏮", sortOrder: 9 },
   ];
 
+  // 注意：Category.name 在 schema.prisma 裡**不是** @unique，所以 upsert({ where: { name } })
+  // 不被 Prisma 接受（會丟 CategoryWhereUniqueInput needs at least one of `id`）——
+  // 這個 seed 因此在第一行就掛掉。改用 findFirst + create 保持幂等，不動資料模型。
   for (const cat of categories) {
-    await prisma.category.upsert({
-      where: { name: cat.name },
-      update: {},
-      create: cat,
-    });
+    const found = await prisma.category.findFirst({ where: { name: cat.name }, select: { id: true } });
+    if (!found) await prisma.category.create({ data: cat });
   }
 
   const cats = await prisma.category.findMany();
@@ -47,6 +47,9 @@ async function main() {
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${cu.nickname}`,
         isCreator: true,
         coins: 10000,
+        // inviteCode 是 required + unique 且**沒有** DB 預設值（schema 沒有 @default），
+        // seed 原本漏了這個欄位所以建立用戶時直接失敗。由手機號末 8 碼推導，穩定且唯一。
+        inviteCode: 'JL' + cu.phone.slice(-8),
       },
     });
 
@@ -222,16 +225,19 @@ async function main() {
   for (const d of dramas) {
     const { episodes, creatorIndex, ...dramaData } = d;
     const creatorId = createdCreators[creatorIndex]?.id;
-    const drama = await prisma.drama.upsert({
-      where: { title: dramaData.title },
-      update: {},
-      create: {
-        ...dramaData,
-        creatorId,
-        status: 1,
-        publishedAt: dramaData.auditStatus === 'approved' ? new Date() : null,
-      },
-    });
+    // Drama.title 同樣不是 @unique（翻拍劇同名是合理的，不該加唯一約束），
+    // 所以 upsert({ where: { title } }) 也不行。同樣改 findFirst + create。
+    let drama = await prisma.drama.findFirst({ where: { title: dramaData.title } });
+    if (!drama) {
+      drama = await prisma.drama.create({
+        data: {
+          ...dramaData,
+          creatorId,
+          status: 1,
+          publishedAt: dramaData.auditStatus === 'approved' ? new Date() : null,
+        },
+      });
+    }
     for (const ep of episodes) {
       await prisma.episode.upsert({
         where: { dramaId_episodeNumber: { dramaId: drama.id, episodeNumber: ep.episodeNumber } },

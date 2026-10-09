@@ -14,8 +14,7 @@ async function renderCommunity() {
   if (res.code !== 200 || !res.data.list.length) {
     grid.innerHTML = `
       <div class="col-span-2 text-center py-16">
-        <p class="text-white/40 mb-4">社區還沒有作品，來發佈第一部吧！</p>
-        <button onclick="showAgentStudio()" class="px-6 py-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-bold">🎬 用 Agent 創作</button>
+        <p class="text-white/40">社區還沒有作品</p>
       </div>`;
     return;
   }
@@ -94,7 +93,7 @@ async function cmRemix(id) {
   if (!confirm('以這部作品的題材與畫風生成你的同款新作？')) return;
   const res = await api.post(`/community/works/${id}/remix`);
   if (res.code !== 200) return alert(res.message || '復刻失敗');
-  alert('🎬 復刻任務已啟動！到「創作中心 → AI 漫劇生成 → 我的生成記錄」查看進度');
+  alert('🎬 復刻任務已啟動！生成完成後會出現在漫劇分頁');
 }
 
 // ===== v6.0 深化：作品詳情 + 評論區 =====

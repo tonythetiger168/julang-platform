@@ -45,7 +45,8 @@ const CP_SHOT_ANIM = {
 };
 
 async function openComicPlayer(id) {
-  const res = await api.get('/ai/comics/' + id);
+  // 語意路徑 /comics（原本借道已被移除的 /ai/*；後端也已經沒有那些路由）
+  const res = await api.get('/comics/' + id);
   if (res.code !== 200) return alert('加載失敗：' + (res.message || '未知錯誤'));
   cpComic = res.data;
   cpEpIndex = 0;
@@ -92,7 +93,7 @@ async function cpLoadEpisode(epNumber, startPanel = 0) {
   cpStop();
   const stage = document.getElementById('cp-stage');
   stage.innerHTML = '<div class="flex items-center justify-center h-full"><div class="loading-spinner"></div></div>';
-  const res = await api.get(`/ai/comics/${cpComic.id}/episodes/${epNumber}`);
+  const res = await api.get(`/comics/${cpComic.id}/episodes/${epNumber}`);
   if (res.code !== 200) {
     stage.innerHTML = '<p class="text-white/40 text-center py-20">劇集加載失敗</p>';
     return;
@@ -112,9 +113,12 @@ function cpRenderPanel() {
   const transClass = p.transition === 'slide' ? 'cp-trans-slide' : p.transition === 'zoom' ? 'cp-trans-zoom' : 'cp-trans-fade';
   stage.innerHTML = `
     <div class="absolute inset-0 ${transClass}" key="${cpPanelIndex}">
+      <!-- 佔位層永遠在圖底下：分鏡圖載入失敗時 onerror 把 <img> 藏起來，
+           露出這層，而不是留下一個破圖。 -->
+      <div class="w-full h-full bg-gradient-to-br from-purple-900 to-gray-900 flex items-center justify-center text-white/30 text-sm">分鏡圖生成中</div>
       ${p.image
-        ? `<img src="${p.image}" class="w-full h-full object-cover ${anim}" alt="panel ${p.n}">`
-        : '<div class="w-full h-full bg-gradient-to-br from-purple-900 to-gray-900 flex items-center justify-center text-white/30 text-sm">分鏡圖生成中</div>'}
+        ? `<img src="${p.image}" class="cp-panel-img absolute inset-0 w-full h-full object-cover ${anim}" alt="第 ${cpPanelIndex + 1} 格分鏡" onerror="this.style.display='none'">`
+        : ''}
       <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/30 pointer-events-none"></div>
       ${p.speaker ? `<div class="absolute top-4 left-4 px-3 py-1 rounded-full bg-purple-500/80 text-white text-xs font-medium backdrop-blur">${p.speaker}</div>` : '<div class="absolute top-4 left-4 px-3 py-1 rounded-full bg-white/20 text-white/80 text-xs backdrop-blur">旁白</div>'}
     </div>`;
@@ -235,25 +239,44 @@ function cpStop() {
   cpStopAudio();
 }
 
-// 覆寫漫劇 Tab：改為加載真實 AI 漫劇數據
+// 漫劇 Tab：載入漫劇清單。
+// 「請求失敗」和「真的沒有漫劇」以前共用同一句空狀態——後端 /ai/* 已經移除，真實
+// API 模式下這條路由必定失敗，使用者看到的是一個騙人的空狀態、而且沒有任何重試方式。
+// 現在兩者分開：失敗給原因＋重試，空清單給一個真的能按的行動按鈕。
 async function renderManju() {
   const grid = document.getElementById('manju-grid');
   if (!grid) return;
-  grid.innerHTML = '<div class="col-span-2 flex justify-center py-10"><div class="loading-spinner"></div></div>';
-  const res = await api.get('/ai/comics?limit=20');
-  if (res.code !== 200 || !res.data.list.length) {
+  // 已經有內容時不要先蓋成 loading：重新進分頁只是重新整理，不該先閃一下
+  if (!grid.innerHTML.trim()) {
+    grid.innerHTML = '<div class="col-span-2 flex justify-center py-10"><div class="loading-spinner"></div></div>';
+  }
+  let res;
+  try { res = await api.get('/comics?limit=20'); }
+  catch (e) { res = { code: 0, message: e && e.message }; }
+  if (!res || res.code !== 200) {
     grid.innerHTML = `
       <div class="col-span-2 text-center py-16">
-        <p class="text-white/40 mb-4">還沒有 AI 漫劇，來創作第一部吧！</p>
-        <button onclick="showAiStudio()" class="px-6 py-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-bold">🎨 AI 生成漫劇</button>
+        <p class="text-white/60">漫劇載入失敗</p>
+        <p class="text-white/35 text-xs mt-1">${(res && res.message) || '請稍後再試'}</p>
+        <button onclick="renderManju()" class="mt-4 px-6 py-2 rounded-full bg-white/10 text-white text-sm">重試</button>
       </div>`;
     return;
   }
-  grid.innerHTML = res.data.list.map(c => `
+  const list = (res.data && res.data.list) || [];
+  if (!list.length) {
+    grid.innerHTML = `
+      <div class="col-span-2 text-center py-16">
+        <p class="text-white/40">還沒有漫劇</p>
+        <button onclick="switchTab('theater')" class="mt-4 px-6 py-2 rounded-full bg-rose-500 text-white text-sm font-medium">先去逛分類</button>
+      </div>`;
+    return;
+  }
+  grid.innerHTML = list.map(c => `
     <div class="rounded-xl overflow-hidden bg-white/5 cursor-pointer hover:bg-white/10 transition duration-300" onclick="openComicPlayer('${c.id}')">
-      <div class="aspect-[3/4] relative">
-        <img src="${c.cover || ''}" class="w-full h-full object-cover" alt="${c.title}" loading="lazy">
-        <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-purple-500/80 text-white text-xs backdrop-blur">AI 漫劇</div>
+      <div class="aspect-[3/4] relative bg-gradient-to-br from-purple-900 to-gray-900">
+        <!-- 不放「AI 漫劇」浮水印徽章：absolute 定位會壓在片名上（使用者回報），
+             而且整個分頁本來就是漫劇，標籤是多餘的。 -->
+        <img src="${c.cover || ''}" class="w-full h-full object-cover" alt="${c.title}" loading="lazy" onerror="this.style.display='none'">
         <div class="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/60 text-white text-xs backdrop-blur">${c.episodes}集</div>
       </div>
       <div class="p-2">

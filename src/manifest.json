@@ -1,10 +1,10 @@
 {
   "name": "劇浪 - AI 短劇漫劇平台",
   "short_name": "劇浪",
-  "description": "AI 漫劇生成 · 編劇工作台 · 短劇 Agent · 靈感社區",
+  "description": "短劇與漫劇 · 靈感社區 · 每日金幣",
   "start_url": "./index.html",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#000000",
   "theme_color": "#0f0a1a",
   "lang": "zh-TW",

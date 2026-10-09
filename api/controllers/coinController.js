@@ -137,6 +137,56 @@ async function bingeReward(req, res) {
   }
 }
 
+// v7.3 新增：分享給第一位朋友，獲得 10 金幣（每位使用者只發一次）
+//
+// 幂等判斷：以「是否已存在 type:'share' 的 CoinTransaction」代表「首次分享已發過」。
+// 「查 findFirst → 加幣 user.update → 寫交易 coinTransaction.create」全部包在同一個
+// prisma.$transaction 內，讓三步在同一條交易連線上先後完成（失敗會整批回滾），
+// 因此重複呼叫不會重複加幣，且不會留下「加了幣卻沒交易」的半套狀態。
+//
+// ⚠️ 誠實說明：這仍**不是**嚴格的併發安全。schema 對 CoinTransaction 只有
+// @@index([userId, type])，**沒有** (userId, type) 唯一約束，所以兩個請求若幾乎同時
+// 通過 findFirst 檢查（都看到「還沒有 share 交易」），仍可能各自加幣一次 → 重複發幣。
+// $transaction 只保證原子性，不提供「不存在的列不能被同時插入」的隔離保證。
+// 要根治必須在 schema 加唯一約束、改用 create 撞 P2002 讓其中一筆交易失敗。
+// 那是 schema 變更（prisma/schema.prisma），本次刻意不做。
+//
+// 回傳：granted:false + alreadyGranted:true 是**幂等成功**（HTTP 200），不是錯誤。
+const SHARE_REWARD = 10;
+const SHARE_REWARD_DESC = '分享給第一位朋友，獲得 10 金幣';
+
+async function shareReward(req, res) {
+  try {
+    if (!req.user || !req.user.userId) return error(res, 401, '未授權');
+    const userId = req.user.userId;
+
+    // 查 + 加幣 + 寫交易都在同一個互動式交易內完成
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.coinTransaction.findFirst({ where: { userId, type: 'share' } });
+      if (existing) {
+        const current = await tx.user.findUnique({ where: { id: userId }, select: { coins: true } });
+        return { granted: false, alreadyGranted: true, coins: current?.coins || 0 };
+      }
+      // status 交給 Prisma 預設 'completed'，不顯式覆寫
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { coins: { increment: SHARE_REWARD } },
+        select: { coins: true },
+      });
+      await tx.coinTransaction.create({
+        data: { userId, type: 'share', amount: SHARE_REWARD, description: SHARE_REWARD_DESC },
+      });
+      return { granted: true, coins: updated?.coins ?? SHARE_REWARD, amount: SHARE_REWARD };
+    });
+
+    if (!result.granted) return success(res, result, '已領取過分享獎勵');
+    return success(res, result, `分享獎勵 +${SHARE_REWARD} 金幣`);
+  } catch (e) {
+    console.error(e);
+    error(res, 500, '領取失敗');
+  }
+}
+
 async function getUnlockStatus(req, res) {
   try {
     const { dramaId } = req.params;
@@ -150,4 +200,4 @@ async function getUnlockStatus(req, res) {
   }
 }
 
-module.exports = { getPackages, getBalance, purchaseCoins, unlockEpisode, bingeReward, getUnlockStatus };
+module.exports = { getPackages, getBalance, purchaseCoins, unlockEpisode, bingeReward, shareReward, getUnlockStatus };

@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "劇浪",
+    "slug": "julang",
+    "version": "1.0.0",
+    "orientation": "default",
+    "scheme": "julang",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#07070f",
+    "primaryColor": "#a855f7",
+    "assetBundlePatterns": ["**/*"],
+    "plugins": [],
+    "ios": {
+      "bundleIdentifier": "app.julang.ios",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "requireFullScreen": false,
+      "infoPlist": {
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ],
+        "UIStatusBarStyle": "UIStatusBarStyleLightContent",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "app.julang.android",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#07070f"
+      },
+      "softwareKeyboardLayoutMode": "pan",
+      "permissions": ["INTERNET"],
+      "blockedPermissions": ["READ_CONTACTS", "ACCESS_FINE_LOCATION"],
+      "config": {
+        "orientation": "unspecified"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

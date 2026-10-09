@@ -10,7 +10,14 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 
-app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
+/* CORS：FRONTEND_URL 支援**逗號分隔的多個來源**（.env 保持一行、好讀）。
+   為什麼要改：預覽跑在 http://127.0.0.1:4173，而 .env 的預設值是 http://localhost:3000；
+   只寫單一來源時，HANDOFF 上寫的「開 http://127.0.0.1:4173/?api=real 就會接上真 API」
+   在瀏覽器會被 CORS 擋掉（api.js 只看到 Failed to fetch，看起來像後端沒開）。
+   沒設定 FRONTEND_URL 時維持 '*'（開發預設，行為不變）。 */
+const corsOrigins = String(process.env.FRONTEND_URL || '')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+app.use(cors({ origin: corsOrigins.length ? corsOrigins : '*' }));
 app.use(express.json({ limit: '2mb' }));
 app.use(apiLimiter);
 
